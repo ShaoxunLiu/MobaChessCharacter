@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>角色卡 - 生命值自动同步版</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        /* CSS 样式部分 */
+        :root {--primary: #4a90e2;--bg: #f0f2f5;--card-bg: #ffffff;--text: #333;--border: #e1e4e8;--accent: #ff6b6b;--gem-color: #9b59b6;}
+        body {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;background-color: var(--bg);color: var(--text);margin: 0;padding: 0;height: 100vh;overflow: hidden;display: flex;justify-content: center;align-items: center;}
+        
+        /* 关键修改 1: 阻止 #app 容器产生双击缩放和长按行为 */
+        #app {
+            width: 100%;
+            height: 100%;
+            max-width: 500px;
+            background: var(--card-bg);
+            padding: 12px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            touch-action: manipulation; /* 优化触控，防止双击放大 */
+        }
+        
+        .header-bar {display: flex;justify-content: space-between;align-items: center;margin-bottom: 8px;border-bottom: 1px solid var(--bg);padding-bottom: 5px;}
+        h2 {margin: 0;font-size: 1.1rem;color: var(--primary);}
+        .total-points {font-size: 0.9rem;font-weight: bold;background: #e3f2fd;color: var(--primary);padding: 2px 8px;border-radius: 10px;}
+        .name-input {width: 100%;padding: 6px;font-size: 1rem;border: 1px solid var(--border);border-radius: 6px;text-align: center;font-weight: bold;box-sizing: border-box;background: #fcfcfc;margin-bottom: 8px;}
+        .base-stats-grid {display: grid;grid-template-columns: 1fr 1fr;gap: 6px 10px;flex-shrink: 0;}
+        .stat-row {display: flex;justify-content: space-between;align-items: center;background: #fcfcfc;padding: 4px;border: 1px solid #eee;border-radius: 6px;}
+        .stat-info {display: flex;flex-direction: column;line-height: 1;flex: 1;}
+        .stat-label {font-weight: bold;font-size: 0.9rem;}
+        .stat-desc {font-size: 0.6rem;color: #999;margin-top: 2px;transform-origin: left;white-space: nowrap;overflow: hidden;text-overflow: ellipsis;max-width: 85px;}
+        .stat-control {display: flex;align-items: center;gap: 4px;}
+        .stat-value {width: 20px;text-align: center;font-weight: bold;font-size: 1rem;}
+        
+        /* 关键修改 2: 阻止按钮产生任何默认触摸行为 */
+        button.btn-circle {
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            line-height: 1;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            flex-shrink: 0;
+            touch-action: none; /* 强制禁用双击/长按等默认手势 */
+        }
+        
+        .btn-plus { background: var(--primary); color: white; }
+        .btn-minus { background: #eee; color: #555; }
+        .btn-gem-plus { background: var(--gem-color); color: white; }
+        .derived-stats {display: grid;grid-template-columns: repeat(3, 1fr);gap: 5px;margin: 8px 0;flex-shrink: 0;}
+        .derived-item {display: flex;flex-direction: column;align-items: center;justify-content: center;padding: 4px;background: #f8f9fa;border-radius: 6px;border: 1px solid #eee;min-height: 50px;}
+        .derived-label {font-size: 0.7rem;color: #666;margin-bottom: 2px;}
+        .derived-value {font-size: 1.1rem;font-weight: 800;color: var(--accent);}
+        .hp-control-wrapper, .gem-control-wrapper {display: flex;align-items: center;gap: 2px;line-height: 1;}
+        .gem-value {font-size: 1.1rem;font-weight: 800;color: var(--gem-color);min-width: 20px;text-align: center;}
+        .notes-section {flex: 1;display: flex;flex-direction: column;min-height: 0;margin-bottom: 8px;}
+        .notes-label {font-size: 0.8rem;font-weight: bold;color: #555;margin-bottom: 4px;}
+        textarea {width: 100%;height: 100%;padding: 8px;border: 1px solid var(--border);border-radius: 6px;resize: none;font-family: inherit;box-sizing: border-box;background: #fafafa;font-size: 0.9rem;}
+        .reset-btn {padding: 10px;border: none;border-radius: 6px;background-color: #ff4757;color: white;font-size: 0.9rem;font-weight: bold;cursor: pointer;flex-shrink: 0;}
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="header-bar">
+        <h2>角色构建</h2>
+        <div class="total-points">总属性点: {{ totalPoints }}</div>
+    </div>
+    
+    <input type="text" v-model="character.name" class="name-input" placeholder="角色姓名">
+
+    <div class="base-stats-grid">
+        <div class="stat-row" v-for="(config, key) in statConfigs" :key="key">
+            <div class="stat-info">
+                <span class="stat-label">{{ config.label }}</span>
+                <span class="stat-desc">{{ config.desc }}</span>
+            </div>
+            <div class="stat-control">
+                <button class="btn-circle btn-minus" @click="updateStat(key, -1)">-</button>
+                <span class="stat-value">{{ character.stats[key] }}</span>
+                <button class="btn-circle btn-plus" @click="updateStat(key, 1)">+</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="derived-stats">
+        <div class="derived-item">
+            <span class="derived-label">⚔️ 攻击</span>
+            <span class="derived-value">{{ derived.attack }}</span>
+        </div>
+        <div class="derived-item">
+            <span class="derived-label">🎯 射程</span>
+            <span class="derived-value">{{ derived.range }}</span>
+        </div>
+        
+        <div class="derived-item">
+            <span class="derived-label">❤️ 生命</span>
+            <div class="hp-control-wrapper">
+                <button class="btn-circle btn-minus" style="width: 20px; height: 20px;" @click="updateCurrentHp(-1)">-</button>
+                <span class="derived-value" style="color: var(--accent);">{{ character.currentHp }}</span>
+                <span style="font-size: 1.1rem; color: #666;">/</span>
+                <span class="derived-value" style="color: #666;">{{ derived.maxHp }}</span>
+                <button class="btn-circle btn-plus" style="width: 20px; height: 20px;" @click="updateCurrentHp(1)">+</button>
+            </div>
+        </div>
+
+        <div class="derived-item">
+            <span class="derived-label">🦶 移动</span>
+            <span class="derived-value">{{ derived.move }}</span>
+        </div>
+        <div class="derived-item">
+            <span class="derived-label">⚡ 行动</span>
+            <span class="derived-value">{{ derived.ap }}</span>
+        </div>
+        <div class="derived-item" style="border-color: #e8daef; background:#fbf4fd;">
+            <span class="derived-label" style="color: #9b59b6;">💎 宝石</span>
+            <div class="gem-control-wrapper">
+                <button class="btn-circle btn-minus" style="width: 20px; height: 20px; font-size: 12px;" @click="updateGem(-1)">-</button>
+                <span class="gem-value">{{ character.gems }}</span>
+                <button class="btn-circle btn-gem-plus" style="width: 20px; height: 20px; font-size: 12px;" @click="updateGem(1)">+</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notes-section">
+        <label class="notes-label">🎒 道具 / 备注</label>
+        <textarea v-model="character.notes" placeholder="道具..."></textarea>
+    </div>
+
+    <button class="reset-btn" @click="resetCharacter">重置</button>
+</div>
+
+<script>
+    const { createApp, reactive, computed, watch, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const defaultStats = { str: 0, per: 0, con: 0, cha: 0, int: 0, agi: 0 };
+            
+            const statConfigs = {
+                str: { label: '力量', desc: '决定攻击力' },
+                per: { label: '感知', desc: '决定射程' },
+                con: { label: '体质', desc: '决定最大生命' },
+                cha: { label: '魅力', desc: '平局判定优势' },
+                int: { label: '智力', desc: '决定行动力' },
+                agi: { label: '敏捷', desc: '决定移动/顺序' }
+            };
+
+            const character = reactive({
+                name: '',
+                stats: { ...defaultStats },
+                gems: 0,
+                currentHp: 0, 
+                notes: ''
+            });
+
+            const derived = computed(() => {
+                const maxHp = 6 + (character.stats.con * 6);
+                return {
+                    attack: character.stats.str,
+                    range: character.stats.per,
+                    maxHp: maxHp, 
+                    move: Math.floor(2 + (character.stats.agi / 2)),
+                    ap: 1 + character.stats.int
+                };
+            });
+
+            // 监听最大生命值变化，并同步当前生命值
+            watch(() => derived.value.maxHp, (newMaxHp) => {
+                if (character.currentHp > newMaxHp) {
+                    character.currentHp = newMaxHp;
+                }
+                // 确保初始时生命值等于最大生命值
+                if (character.currentHp === 0 && newMaxHp > 0 && Object.values(character.stats).every(v => v === 0)) {
+                     character.currentHp = newMaxHp;
+                }
+            }, { immediate: true }); 
+
+            // 计算总属性点
+            const totalPoints = computed(() => {
+                return Object.values(character.stats).reduce((sum, val) => sum + val, 0);
+            });
+
+            const updateStat = (key, delta) => {
+                const newVal = character.stats[key] + delta;
+                if (newVal >= 0) {
+                    // 1. 更新属性值
+                    character.stats[key] = newVal;
+
+                    // 2. 如果增加的是体质 (con)，则同步增加当前生命值
+                    if (key === 'con' && delta > 0) {
+                        character.currentHp += delta * 6;
+                    }
+                }
+            };
+
+            const updateGem = (delta) => {
+                const newVal = character.gems + delta;
+                if (newVal >= 0) character.gems = newVal;
+            };
+
+            // 更新当前生命值 (X)
+            const updateCurrentHp = (delta) => {
+                let newVal = character.currentHp + delta;
+                const max = derived.value.maxHp;
+
+                if (newVal > max) {
+                    newVal = max;
+                }
+                else if (newVal < 0) {
+                    newVal = 0;
+                }
+                character.currentHp = newVal;
+            };
+
+            const resetCharacter = () => {
+                if(confirm('重置所有数据吗？')) {
+                    character.name = '';
+                    Object.assign(character.stats, defaultStats);
+                    character.gems = 0;
+                    character.notes = '';
+                    character.currentHp = derived.value.maxHp; 
+                }
+            };
+
+            // 读取存档
+            onMounted(() => {
+                const saved = localStorage.getItem('rpg-char-data-v4');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    character.name = parsed.name || '';
+                    if (parsed.stats) character.stats = { ...defaultStats, ...parsed.stats };
+                    character.gems = parsed.gems || 0;
+                    character.notes = parsed.notes || '';
+                    
+                    const maxHpOnLoad = 6 + (character.stats.con * 6);
+                    character.currentHp = parsed.currentHp !== undefined ? parsed.currentHp : maxHpOnLoad;
+
+                    if (character.currentHp > maxHpOnLoad) {
+                         character.currentHp = maxHpOnLoad;
+                    }
+                } else {
+                    // 首次运行时，设置初始 Current HP = Max HP
+                    character.currentHp = derived.value.maxHp;
+                }
+            });
+
+            // 自动保存
+            watch(character, (newVal) => {
+                localStorage.setItem('rpg-char-data-v4', JSON.stringify(newVal));
+            }, { deep: true });
+
+            return {
+                character,
+                statConfigs,
+                derived,
+                totalPoints,
+                updateStat,
+                updateGem,
+                updateCurrentHp,
+                resetCharacter
+            };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
