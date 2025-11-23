@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>角色卡 - 生命值自动同步版</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        /* CSS 样式部分 */
+        :root {--primary: #4a90e2;--bg: #f0f2f5;--card-bg: #ffffff;--text: #333;--border: #e1e4e8;--accent: #ff6b6b;--gem-color: #9b59b6;}
+        body {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;background-color: var(--bg);color: var(--text);margin: 0;padding: 0;height: 100vh;overflow: hidden;display: flex;justify-content: center;align-items: center;}
+        
+        /* 关键修改 1: 阻止 #app 容器产生双击缩放和长按行为 */
+        #app {
+            width: 100%;
+            height: 100%;
+            max-width: 500px;
+            background: var(--card-bg);
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow-y: auto; /* 允许滚动 */
+        }
+        
+        /* 标签页导航样式 (新增) */
+        .tabs {
+            display: flex;
+            justify-content: space-around;
+            margin: -20px -20px 20px -20px; /* 扩展到 #app 容器边缘 */
+            padding: 10px 20px 0 20px;
+            border-bottom: 2px solid var(--border);
+            background-color: var(--card-bg);
+            position: sticky; /* 保持在顶部 */
+            top: 0;
+            z-index: 10;
+        }
+        .tab-button {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--text);
+            background-color: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            transition: border-bottom 0.3s, color 0.3s;
+        }
+        .tab-button.active {
+            border-bottom: 3px solid var(--primary);
+            color: var(--primary);
+        }
+
+        /* 角色卡原始内容的样式 (来自您的原文件) */
+        .header {text-align: center;margin-bottom: 15px;}
+        .header h1 {font-size: 24px;margin: 0;color: var(--primary);}
+        .input-group {margin-bottom: 15px;}
+        .input-group label {display: block;font-weight: bold;margin-bottom: 5px;font-size: 14px;}
+        .input-group input[type="text"] {width: 100%;padding: 10px;border: 1px solid var(--border);border-radius: 6px;box-sizing: border-box;font-size: 16px;}
+        
+        /* 属性区域 */
+        .stats-area {border: 1px solid var(--border);border-radius: 8px;padding: 15px;margin-bottom: 20px;}
+        .stats-area h2 {font-size: 18px;margin-top: 0;padding-bottom: 5px;border-bottom: 1px solid var(--border);}
+        .stat-item {display: flex;justify-content: space-between;align-items: center;margin-bottom: 10px;padding: 5px 0;border-bottom: 1px dotted var(--border);}
+        .stat-name {font-weight: bold;width: 80px;}
+        .stat-value {display: flex;align-items: center;}
+        .stat-value button {width: 30px;height: 30px;font-size: 18px;line-height: 1;border: none;border-radius: 4px;cursor: pointer;background-color: var(--primary);color: white;margin: 0 5px;transition: background-color 0.2s;}
+        .stat-value button:disabled {background-color: #ccc;cursor: not-allowed;}
+        .stat-value button:active:not(:disabled) {background-color: #3873c9;}
+        .stat-points {width: 25px;text-align: center;font-weight: bold;font-size: 16px;}
+
+        /* 派生属性/HP/宝石 */
+        .derived-hp-gem {display: grid;grid-template-columns: repeat(2, 1fr);gap: 10px;margin-bottom: 20px;}
+        .derived-item, .hp-item, .gem-item {border: 1px solid var(--border);border-radius: 6px;padding: 10px;text-align: center;}
+        .derived-item strong, .hp-item strong, .gem-item strong {display: block;font-size: 14px;margin-bottom: 5px;color: #666;}
+        .derived-value, .hp-value {font-size: 20px;font-weight: bold;color: var(--primary);}
+        .gem-value {font-size: 20px;font-weight: bold;color: var(--gem-color);}
+        
+        /* HP 调整 */
+        .hp-adjust {display: flex;justify-content: center;align-items: center;margin-top: 5px;}
+        .hp-adjust input {width: 40px;text-align: center;border: 1px solid var(--border);border-radius: 4px;margin: 0 5px;}
+        .hp-adjust button {padding: 5px 10px;border: none;border-radius: 4px;cursor: pointer;background-color: var(--accent);color: white;margin: 0 5px;transition: background-color 0.2s;}
+        .hp-adjust button.heal {background-color: #2ecc71;}
+        .hp-adjust button:active {opacity: 0.8;}
+        
+        /* 🌟 修改 2: 当前生命数值改为红色 */
+        .current-hp-value {color: var(--accent);}
+
+        /* 宝石调整 */
+        .gem-adjust {display: flex;justify-content: center;margin-top: 5px;}
+        .gem-adjust button {padding: 5px 10px;border: none;border-radius: 4px;cursor: pointer;background-color: var(--gem-color);color: white;margin: 0 5px;transition: background-color 0.2s;}
+        .gem-adjust button:active {opacity: 0.8;}
+
+        /* 备注区域 */
+        .notes-area textarea {width: 100%;height: 100px;padding: 10px;border: 1px solid var(--border);border-radius: 6px;box-sizing: border-box;font-size: 14px;resize: vertical;}
+
+        /* 技能树部分 (新增) */
+        .skill-tree-content {padding-top: 10px;}
+        .skill-tree-content select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        .skill-tree-image-container {
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background-color: #f9f9f9;
+            box-sizing: border-box;
+            padding: 10px;
+            overflow: auto; /* 允许图片滚动 */
+        }
+        .skill-tree-image-container img {
+            max-width: none;
+            width: 100%; 
+            min-width: 300px; /* 防止图片过小 */
+            display: block;
+            touch-action: pan-x pan-y;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="tabs">
+        <button class="tab-button" :class="{ active: currentTab === 'charCard' }" @click="currentTab = 'charCard'">
+            角色卡
+        </button>
+        <button class="tab-button" :class="{ active: currentTab === 'skillTree' }" @click="currentTab = 'skillTree'">
+            技能树
+        </button>
+    </div>
+
+    <div v-if="currentTab === 'charCard'" class="char-card-content">
+        <div class="header">
+            <h1>{{ character.name || '新角色' }}</h1>
+            <button @click="resetCharacter" style="margin-top: 10px; padding: 8px 15px; background-color: #ffaa00; color: white; border: none; border-radius: 4px; cursor: pointer;">重置角色数据</button>
+        </div>
+
+        <div class="input-group">
+            <label for="char-name">角色名称</label>
+            <input id="char-name" type="text" v-model="character.name" placeholder="输入你的角色名称">
+        </div>
+
+        <div class="derived-hp-gem">
+            <div class="hp-item" style="grid-column: span 2;">
+                <strong>生命值 (HP)</strong>
+                <div class="hp-value">
+                    <span :class="{'current-hp-value': character.currentHp < derived.maxHp}">{{ character.currentHp }}</span> / {{ derived.maxHp }}
+                </div>
+                <div class="hp-adjust">
+                    <button @click="updateCurrentHp(-hpChangeValue)">-</button>
+                    <input type="number" v-model.number="hpChangeValue" placeholder="数值">
+                    <button class="heal" @click="updateCurrentHp(hpChangeValue)">+</button>
+                </div>
+            </div>
+            
+            <div class="derived-item">
+                <strong>攻击力</strong>
+                <span class="derived-value">{{ derived.attack }}</span>
+            </div>
+            <div class="derived-item">
+                <strong>射程</strong>
+                <span class="derived-value">{{ derived.range }}</span>
+            </div>
+            <div class="derived-item">
+                <strong>移动力</strong>
+                <span class="derived-value">{{ derived.movement }}</span>
+            </div>
+            <div class="derived-item">
+                <strong>行动力</strong>
+                <span class="derived-value">{{ derived.action }}</span>
+            </div>
+            
+            <div class="gem-item" style="grid-column: span 2;">
+                <strong>宝石</strong>
+                <span class="gem-value">{{ character.gems }}</span>
+                <div class="gem-adjust">
+                    <button @click="updateGem(-1)">-1</button>
+                    <button @click="updateGem(1)">+1</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-area">
+            <h2>基础属性 (已分配点数: {{ totalPoints }})</h2>
+            <div v-for="(config, stat) in statConfigs" :key="stat" class="stat-item">
+                <span class="stat-name">{{ config.name }}</span>
+                <div class="stat-value">
+                    <button @click="updateStat(stat, -1)" :disabled="character.stats[stat] <= 0">-</button>
+                    <span class="stat-points">{{ character.stats[stat] }}</span>
+                    <button @click="updateStat(stat, 1)" :disabled="character.stats[stat] >= config.max">+</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="notes-area">
+            <label for="notes">备注 / 技能列表</label>
+            <textarea id="notes" v-model="character.notes" placeholder="在此记录你的笔记或技能列表..."></textarea>
+        </div>
+    </div>
+
+    <div v-if="currentTab === 'skillTree'" class="skill-tree-content">
+        <h2>职业技能树</h2>
+        <select v-model="selectedClass">
+            <option disabled value="">请选择一个职业</option>
+            <option v-for="cls in availableClasses" :key="cls.id" :value="cls.id">
+                {{ cls.name }}
+            </option>
+        </select>
+
+        <div class="skill-tree-image-container">
+            <img 
+                v-if="selectedClass && skillTreeImages[selectedClass]" 
+                :src="skillTreeImages[selectedClass]" 
+                alt="Skill Tree Image"
+            />
+            <p v-else style="text-align: center; color: #666;">
+                请在上方下拉菜单中选择一个职业来查看其技能树。
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { ref, reactive, computed, watch, onMounted } = Vue;
+
+    // 角色卡默认数据 (您的原文件内容)
+    const defaultStats = {
+        str: 0, // 力量
+        per: 0, // 感知
+        con: 0, // 体质
+        cha: 0, // 魅力
+        int: 0, // 智力
+        dex: 0, // 敏捷
+    };
+
+    // 角色卡属性配置 (您的原文件内容)
+    const statConfigs = {
+        str: { name: '力量', max: 20 },
+        per: { name: '感知', max: 20 },
+        con: { name: '体质', max: 20 },
+        cha: { name: '魅力', max: 20 },
+        int: { name: '智力', max: 20 },
+        dex: { name: '敏捷', max: 20 },
+    };
+    
+    // 技能树图片映射 (更新为 .png 格式)
+    const skillTreeImages = {
+        mage: '法师技能.png',
+        assassin: '刺客技能.png',
+        druid: '德鲁伊技能.png',
+        warrior: '战士技能.png',
+        priest: '牧师技能.png',
+        hunter: '猎人技能.png',
+        warlock: '术士技能.png',
+        knight: '骑士技能.png',
+        bard: '吟游诗人技能.png',
+        shaman: '萨满技能.png',
+    };
+
+    // 职业列表
+    const availableClasses = [
+        { id: 'mage', name: '法师' },
+        { id: 'assassin', name: '刺客' },
+        { id: 'druid', name: '德鲁伊' },
+        { id: 'warrior', name: '战士' },
+        { id: 'priest', name: '牧师' },
+        { id: 'hunter', name: '猎人' },
+        { id: 'warlock', name: '术士' },
+        { id: 'knight', name: '骑士' },
+        { id: 'bard', name: '吟游诗人' },
+        { id: 'shaman', name: '萨满' },
+    ];
+
+
+    Vue.createApp({
+        setup() {
+            // 新增 Tab 状态
+            const currentTab = ref('charCard');
+            const selectedClass = ref('');
+
+            // 角色卡状态 (您的原文件内容)
+            const character = reactive({
+                name: '',
+                stats: { ...defaultStats },
+                currentHp: 0, 
+                gems: 0,
+                notes: ''
+            });
+            const hpChangeValue = ref(1);
+
+            const totalPoints = computed(() => {
+                return Object.values(character.stats).reduce((sum, val) => sum + val, 0);
+            });
+
+            const derived = computed(() => {
+                const con = character.stats.con;
+                const int = character.stats.int;
+                const dex = character.stats.dex;
+                const str = character.stats.str;
+                const per = character.stats.per;
+
+                // 最小 MaxHp 必须是 6
+                const maxHp = 6 + (con * 6); 
+
+                return {
+                    attack: str, 
+                    range: per, 
+                    maxHp: maxHp, 
+                    movement: 2 + Math.floor(dex / 2), 
+                    action: 1 + int, 
+                };
+            });
+
+            // 角色卡方法
+            const updateStat = (stat, change) => {
+                const current = character.stats[stat];
+                const maxStat = statConfigs[stat].max;
+
+                if (change > 0 && current < maxStat) {
+                    character.stats[stat] += 1;
+                } else if (change < 0 && current > 0) {
+                    character.stats[stat] -= 1;
+                }
+            };
+
+            const updateGem = (change) => {
+                character.gems = Math.max(0, character.gems + change);
+            };
+
+            const updateCurrentHp = (change) => {
+                const current = character.currentHp;
+                // 确保当前生命值不低于 0
+                const newHp = Math.min(derived.value.maxHp, Math.max(0, current + change));
+                character.currentHp = newHp;
+                hpChangeValue.value = 1; 
+            };
+            
+            const resetCharacter = () => {
+                if (confirm('确定要重置所有角色数据吗？')) {
+                    character.name = '';
+                    character.stats = { ...defaultStats };
+                    character.currentHp = 6;
+                    character.gems = 0;
+                    character.notes = '';
+                }
+            };
+
+            // 初始化加载数据
+            onMounted(() => {
+                const saved = localStorage.getItem('rpg-char-data-v4');
+                const initialMaxHp = derived.value.maxHp;
+
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    character.name = parsed.name || '';
+                    if (parsed.stats) character.stats = { ...defaultStats, ...parsed.stats };
+                    character.gems = parsed.gems || 0;
+                    character.notes = parsed.notes || '';
+                    
+                    const maxHpOnLoad = 6 + (character.stats.con * 6);
+                    // 确保 currentHp 在加载时不会超过 Max HP
+                    character.currentHp = Math.min(maxHpOnLoad, parsed.currentHp !== undefined ? parsed.currentHp : maxHpOnLoad);
+                } else {
+                    character.currentHp = initialMaxHp;
+                }
+            });
+
+            // 自动保存
+            watch(character, (newVal) => {
+                localStorage.setItem('rpg-char-data-v4', JSON.stringify(newVal));
+            }, { deep: true });
+            
+            // 🌟 核心修改：监听最大生命值变化
+            watch(() => derived.value.maxHp, (newMaxHp, oldMaxHp) => {
+                 const diff = newMaxHp - oldMaxHp;
+                 
+                 if (diff > 0) {
+                     // 最大生命提升时，同步增加当前生命
+                     character.currentHp = character.currentHp + diff;
+                 } else if (diff < 0) {
+                     // 最大生命减少时，同步减少当前生命，但最低为 1
+                     const newHp = character.currentHp + diff;
+                     character.currentHp = Math.max(1, newHp);
+                 }
+            });
+
+
+            return {
+                currentTab,
+                selectedClass,
+                availableClasses,
+                skillTreeImages,
+                character,
+                statConfigs,
+                derived,
+                totalPoints,
+                hpChangeValue,
+                updateStat,
+                updateGem,
+                updateCurrentHp,
+                resetCharacter
+            };
+        }
+    }).mount('#app');
+</script>
