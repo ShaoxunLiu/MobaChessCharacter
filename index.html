@@ -10,7 +10,7 @@
         :root {--primary: #4a90e2;--bg: #f0f2f5;--card-bg: #ffffff;--text: #333;--border: #e1e4e8;--accent: #ff6b6b;--gem-color: #9b59b6;}
         body {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;background-color: var(--bg);color: var(--text);margin: 0;padding: 0;height: 100vh;overflow: hidden;display: flex;justify-content: center;align-items: center;}
         
-        /* 关键修改 1: 阻止 #app 容器产生双击缩放和长按行为 */
+        /* 🌟 关键修改 1: 阻止 #app 容器产生双击缩放和长按行为 */
         #app {
             width: 100%;
             height: 100%;
@@ -19,6 +19,9 @@
             padding: 20px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             overflow-y: auto; /* 允许滚动 */
+            /* 阻止双击缩放和长按菜单，但在图片上会覆盖 */
+            touch-action: pan-y manipulation; 
+            user-select: none;
         }
         
         /* 标签页导航样式 (新增) */
@@ -81,7 +84,7 @@
         .hp-adjust button.heal {background-color: #2ecc71;}
         .hp-adjust button:active {opacity: 0.8;}
         
-        /* 🌟 修改 2: 当前生命数值改为红色 */
+        /* 🌟 修改 2: 当前生命数值改为红色 (已存在，保留) */
         .current-hp-value {color: var(--accent);}
 
         /* 宝石调整 */
@@ -111,14 +114,17 @@
             background-color: #f9f9f9;
             box-sizing: border-box;
             padding: 10px;
-            overflow: auto; /* 允许图片滚动 */
+            overflow: auto; /* 允许滚动 */
         }
         .skill-tree-image-container img {
             max-width: none;
             width: 100%; 
             min-width: 300px; /* 防止图片过小 */
             display: block;
-            touch-action: pan-x pan-y;
+            
+            /* 🌟 关键修改 2: 允许在图片上进行平移和缩放（双指缩放）*/
+            touch-action: pan-x pan-y; 
+            user-select: auto; /* 允许图片内部的元素被选中/操作 */
         }
     </style>
 </head>
@@ -217,6 +223,8 @@
                 v-if="selectedClass && skillTreeImages[selectedClass]" 
                 :src="skillTreeImages[selectedClass]" 
                 alt="Skill Tree Image"
+                @dblclick.prevent
+                @contextmenu.prevent
             />
             <p v-else style="text-align: center; color: #666;">
                 请在上方下拉菜单中选择一个职业来查看其技能树。
@@ -377,16 +385,16 @@
             
             // 🌟 核心修改：监听最大生命值变化
             watch(() => derived.value.maxHp, (newMaxHp, oldMaxHp) => {
-                 const diff = newMaxHp - oldMaxHp;
-                 
-                 if (diff > 0) {
-                     // 最大生命提升时，同步增加当前生命
-                     character.currentHp = character.currentHp + diff;
-                 } else if (diff < 0) {
-                     // 最大生命减少时，同步减少当前生命，但最低为 1
-                     const newHp = character.currentHp + diff;
-                     character.currentHp = Math.max(1, newHp);
-                 }
+                    const diff = newMaxHp - oldMaxHp;
+                    
+                    if (diff > 0) {
+                        // 最大生命提升时，同步增加当前生命
+                        character.currentHp = character.currentHp + diff;
+                    } else if (diff < 0) {
+                        // 最大生命减少时，同步减少当前生命，但最低为 1
+                        const newHp = character.currentHp + diff;
+                        character.currentHp = Math.max(1, newHp);
+                    }
             });
 
 
