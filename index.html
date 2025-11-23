@@ -10,7 +10,6 @@
         :root {--primary: #4a90e2;--bg: #f0f2f5;--card-bg: #ffffff;--text: #333;--border: #e1e4e8;--accent: #ff6b6b;--gem-color: #9b59b6;}
         body {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;background-color: var(--bg);color: var(--text);margin: 0;padding: 0;height: 100vh;overflow: hidden;display: flex;justify-content: center;align-items: center;}
         
-        /* 🌟 关键修改 1: 阻止 #app 容器产生双击缩放和长按行为 */
         #app {
             width: 100%;
             height: 100%;
@@ -18,21 +17,20 @@
             background: var(--card-bg);
             padding: 20px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            overflow-y: auto; /* 允许滚动 */
-            /* 阻止双击缩放和长按菜单，但在图片上会覆盖 */
+            overflow-y: auto; 
             touch-action: pan-y manipulation; 
             user-select: none;
         }
         
-        /* 标签页导航样式 (新增) */
+        /* 标签页导航样式 */
         .tabs {
             display: flex;
             justify-content: space-around;
-            margin: -20px -20px 20px -20px; /* 扩展到 #app 容器边缘 */
+            margin: -20px -20px 20px -20px; 
             padding: 10px 20px 0 20px;
             border-bottom: 2px solid var(--border);
             background-color: var(--card-bg);
-            position: sticky; /* 保持在顶部 */
+            position: sticky; 
             top: 0;
             z-index: 10;
         }
@@ -52,7 +50,7 @@
             color: var(--primary);
         }
 
-        /* 角色卡原始内容的样式 (来自您的原文件) */
+        /* 角色卡原始内容的样式 */
         .header {text-align: center;margin-bottom: 15px;}
         .header h1 {font-size: 24px;margin: 0;color: var(--primary);}
         .input-group {margin-bottom: 15px;}
@@ -84,7 +82,6 @@
         .hp-adjust button.heal {background-color: #2ecc71;}
         .hp-adjust button:active {opacity: 0.8;}
         
-        /* 🌟 修改 2: 当前生命数值改为红色 (已存在，保留) */
         .current-hp-value {color: var(--accent);}
 
         /* 宝石调整 */
@@ -95,7 +92,7 @@
         /* 备注区域 */
         .notes-area textarea {width: 100%;height: 100px;padding: 10px;border: 1px solid var(--border);border-radius: 6px;box-sizing: border-box;font-size: 14px;resize: vertical;}
 
-        /* 技能树部分 (新增) */
+        /* 技能树部分 */
         .skill-tree-content {padding-top: 10px;}
         .skill-tree-content select {
             width: 100%;
@@ -108,23 +105,30 @@
         }
         .skill-tree-image-container {
             width: 100%;
-            height: 100%;
+            height: 400px; 
             border: 1px solid var(--border);
             border-radius: 6px;
             background-color: #f9f9f9;
             box-sizing: border-box;
             padding: 10px;
-            overflow: auto; /* 允许滚动 */
+            overflow: hidden; 
+            position: relative;
         }
         .skill-tree-image-container img {
             max-width: none;
             width: 100%; 
-            min-width: 300px; /* 防止图片过小 */
+            min-width: 300px; 
             display: block;
-            
-            /* 🌟 关键修改 2: 允许在图片上进行平移和缩放（双指缩放）*/
             touch-action: pan-x pan-y; 
-            user-select: auto; /* 允许图片内部的元素被选中/操作 */
+            user-select: none; /* 拖拽时防止选中文字 */
+            
+            transform-origin: 0 0;
+            
+            /* 🌟 关键修改 1: 根据拖拽状态动态改变光标 */
+            cursor: grab; 
+        }
+        .skill-tree-image-container img.is-dragging {
+            cursor: grabbing;
         }
     </style>
 </head>
@@ -225,6 +229,15 @@
                 alt="Skill Tree Image"
                 @dblclick.prevent
                 @contextmenu.prevent
+                @wheel.prevent="handleZoom"
+                
+                @mousedown="startDrag"
+                @mousemove="onDrag"
+                @mouseup="stopDrag"
+                @mouseleave="stopDrag"
+                
+                :class="{'is-dragging': dragState.isDragging}"
+                :style="imageTransformStyle"
             />
             <p v-else style="text-align: center; color: #666;">
                 请在上方下拉菜单中选择一个职业来查看其技能树。
@@ -236,62 +249,33 @@
 <script>
     const { ref, reactive, computed, watch, onMounted } = Vue;
 
-    // 角色卡默认数据 (您的原文件内容)
+    // ... [常量定义部分保持不变] ...
     const defaultStats = {
-        str: 0, // 力量
-        per: 0, // 感知
-        con: 0, // 体质
-        cha: 0, // 魅力
-        int: 0, // 智力
-        dex: 0, // 敏捷
+        str: 0, per: 0, con: 0, cha: 0, int: 0, dex: 0,
     };
-
-    // 角色卡属性配置 (您的原文件内容)
     const statConfigs = {
-        str: { name: '力量', max: 20 },
-        per: { name: '感知', max: 20 },
-        con: { name: '体质', max: 20 },
-        cha: { name: '魅力', max: 20 },
-        int: { name: '智力', max: 20 },
-        dex: { name: '敏捷', max: 20 },
+        str: { name: '力量', max: 20 }, per: { name: '感知', max: 20 }, con: { name: '体质', max: 20 }, 
+        cha: { name: '魅力', max: 20 }, int: { name: '智力', max: 20 }, dex: { name: '敏捷', max: 20 },
     };
-    
-    // 技能树图片映射 (更新为 .png 格式)
     const skillTreeImages = {
-        mage: '法师技能.png',
-        assassin: '刺客技能.png',
-        druid: '德鲁伊技能.png',
-        warrior: '战士技能.png',
-        priest: '牧师技能.png',
-        hunter: '猎人技能.png',
-        warlock: '术士技能.png',
-        knight: '骑士技能.png',
-        bard: '吟游诗人技能.png',
+        mage: '法师技能.png', assassin: '刺客技能.png', druid: '德鲁伊技能.png', 
+        warrior: '战士技能.png', priest: '牧师技能.png', hunter: '猎人技能.png', 
+        warlock: '术士技能.png', knight: '骑士技能.png', bard: '吟游诗人技能.png', 
         shaman: '萨满技能.png',
     };
-
-    // 职业列表
     const availableClasses = [
-        { id: 'mage', name: '法师' },
-        { id: 'assassin', name: '刺客' },
-        { id: 'druid', name: '德鲁伊' },
-        { id: 'warrior', name: '战士' },
-        { id: 'priest', name: '牧师' },
-        { id: 'hunter', name: '猎人' },
-        { id: 'warlock', name: '术士' },
-        { id: 'knight', name: '骑士' },
-        { id: 'bard', name: '吟游诗人' },
+        { id: 'mage', name: '法师' }, { id: 'assassin', name: '刺客' }, { id: 'druid', name: '德鲁伊' }, 
+        { id: 'warrior', name: '战士' }, { id: 'priest', name: '牧师' }, { id: 'hunter', name: '猎人' }, 
+        { id: 'warlock', name: '术士' }, { id: 'knight', name: '骑士' }, { id: 'bard', name: '吟游诗人' }, 
         { id: 'shaman', name: '萨满' },
     ];
 
 
     Vue.createApp({
         setup() {
-            // 新增 Tab 状态
             const currentTab = ref('charCard');
             const selectedClass = ref('');
 
-            // 角色卡状态 (您的原文件内容)
             const character = reactive({
                 name: '',
                 stats: { ...defaultStats },
@@ -301,6 +285,32 @@
             });
             const hpChangeValue = ref(1);
 
+            // 滚轮/拖拽 缩放平移状态
+            const zoomState = reactive({
+                scale: 1.0,
+                x: 0,
+                y: 0,
+            });
+            
+            // 🌟 关键修改 3: 拖拽状态 (新增)
+            const dragState = reactive({
+                isDragging: false,
+                startX: 0,
+                startY: 0,
+                startTransX: 0,
+                startTransY: 0,
+            });
+
+
+            const imageTransformStyle = computed(() => {
+                return {
+                    // 使用 translate3d 开启硬件加速，提高拖拽平滑度
+                    transform: `translate3d(${zoomState.x}px, ${zoomState.y}px, 0) scale(${zoomState.scale})`,
+                    transition: dragState.isDragging ? 'none' : 'transform 0.1s ease-out',
+                };
+            });
+
+            // ... [totalPoints 和 derived 计算属性保持不变] ...
             const totalPoints = computed(() => {
                 return Object.values(character.stats).reduce((sum, val) => sum + val, 0);
             });
@@ -311,24 +321,102 @@
                 const dex = character.stats.dex;
                 const str = character.stats.str;
                 const per = character.stats.per;
-
-                // 最小 MaxHp 必须是 6
                 const maxHp = 6 + (con * 6); 
-
                 return {
-                    attack: str, 
-                    range: per, 
-                    maxHp: maxHp, 
-                    movement: 2 + Math.floor(dex / 2), 
-                    action: 1 + int, 
+                    attack: str, range: per, maxHp: maxHp, 
+                    movement: 2 + Math.floor(dex / 2), action: 1 + int, 
                 };
             });
 
-            // 角色卡方法
+            // --- 拖拽功能实现 (新增) ---
+            const startDrag = (event) => {
+                // 确保只有鼠标左键 (button 0) 触发拖拽
+                if (event.button !== 0) return; 
+
+                // 如果图片是原始大小 (scale=1.0)，则不需要拖拽
+                if (zoomState.scale === 1.0) return;
+
+                dragState.isDragging = true;
+                dragState.startX = event.clientX;
+                dragState.startY = event.clientY;
+                dragState.startTransX = zoomState.x;
+                dragState.startTransY = zoomState.y;
+                
+                // 阻止浏览器默认拖拽行为
+                event.preventDefault(); 
+            };
+
+            const onDrag = (event) => {
+                if (!dragState.isDragging) return;
+
+                // 计算鼠标移动的距离
+                const dx = event.clientX - dragState.startX;
+                const dy = event.clientY - dragState.startY;
+
+                // 更新图片的平移位置
+                zoomState.x = dragState.startTransX + dx;
+                zoomState.y = dragState.startTransY + dy;
+                
+                // 阻止选择文本等默认行为
+                event.preventDefault(); 
+            };
+
+            const stopDrag = () => {
+                dragState.isDragging = false;
+                // 可以在这里添加边界检查，防止拖出容器
+                // 边界检查通常比较复杂，这里为了简洁先省略
+            };
+
+            // --- 滚轮功能实现 (修改了 transition 逻辑) ---
+            const handleZoom = (event) => {
+                event.preventDefault(); 
+                if (dragState.isDragging) return; // 拖拽时禁用滚轮
+
+                const imgElement = event.currentTarget;
+                const rect = imgElement.getBoundingClientRect();
+                
+                const direction = event.deltaY < 0 ? 1 : -1;
+                const zoomFactor = 0.1; 
+                
+                const oldScale = zoomState.scale;
+                let newScale = oldScale + direction * zoomFactor;
+
+                // 限制缩放范围 (最小 1.0，最大 4.0)
+                newScale = Math.min(4.0, Math.max(1.0, newScale));
+                
+                if (newScale === oldScale) return; 
+
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+
+                const newX = zoomState.x + mouseX * (1 - newScale / oldScale);
+                const newY = zoomState.y + mouseY * (1 - newScale / oldScale);
+
+                zoomState.scale = newScale;
+                
+                if (newScale === 1.0) {
+                    zoomState.x = 0;
+                    zoomState.y = 0;
+                } else {
+                    zoomState.x = newX;
+                    zoomState.y = newY;
+                }
+            };
+            
+            // 监听 Tab 切换，重置缩放状态
+            watch(currentTab, (newTab) => {
+                if (newTab === 'charCard') {
+                    zoomState.scale = 1.0;
+                    zoomState.x = 0;
+                    zoomState.y = 0;
+                }
+            });
+
+
+            // ... [角色卡 HP/Stats 方法保持不变] ...
             const updateStat = (stat, change) => {
                 const current = character.stats[stat];
                 const maxStat = statConfigs[stat].max;
-
                 if (change > 0 && current < maxStat) {
                     character.stats[stat] += 1;
                 } else if (change < 0 && current > 0) {
@@ -342,7 +430,6 @@
 
             const updateCurrentHp = (change) => {
                 const current = character.currentHp;
-                // 确保当前生命值不低于 0
                 const newHp = Math.min(derived.value.maxHp, Math.max(0, current + change));
                 character.currentHp = newHp;
                 hpChangeValue.value = 1; 
@@ -358,60 +445,47 @@
                 }
             };
 
-            // 初始化加载数据
+            // ... [onMounted 和 watch 自动保存/HP 逻辑保持不变] ...
             onMounted(() => {
                 const saved = localStorage.getItem('rpg-char-data-v4');
                 const initialMaxHp = derived.value.maxHp;
-
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     character.name = parsed.name || '';
                     if (parsed.stats) character.stats = { ...defaultStats, ...parsed.stats };
                     character.gems = parsed.gems || 0;
                     character.notes = parsed.notes || '';
-                    
                     const maxHpOnLoad = 6 + (character.stats.con * 6);
-                    // 确保 currentHp 在加载时不会超过 Max HP
                     character.currentHp = Math.min(maxHpOnLoad, parsed.currentHp !== undefined ? parsed.currentHp : maxHpOnLoad);
                 } else {
                     character.currentHp = initialMaxHp;
                 }
             });
-
-            // 自动保存
             watch(character, (newVal) => {
                 localStorage.setItem('rpg-char-data-v4', JSON.stringify(newVal));
             }, { deep: true });
-            
-            // 🌟 核心修改：监听最大生命值变化
             watch(() => derived.value.maxHp, (newMaxHp, oldMaxHp) => {
-                    const diff = newMaxHp - oldMaxHp;
-                    
-                    if (diff > 0) {
-                        // 最大生命提升时，同步增加当前生命
-                        character.currentHp = character.currentHp + diff;
-                    } else if (diff < 0) {
-                        // 最大生命减少时，同步减少当前生命，但最低为 1
-                        const newHp = character.currentHp + diff;
-                        character.currentHp = Math.max(1, newHp);
-                    }
+                const diff = newMaxHp - oldMaxHp;
+                if (diff > 0) {
+                    character.currentHp = character.currentHp + diff;
+                } else if (diff < 0) {
+                    const newHp = character.currentHp + diff;
+                    character.currentHp = Math.max(1, newHp);
+                }
             });
 
 
             return {
-                currentTab,
-                selectedClass,
-                availableClasses,
-                skillTreeImages,
-                character,
-                statConfigs,
-                derived,
-                totalPoints,
-                hpChangeValue,
-                updateStat,
-                updateGem,
-                updateCurrentHp,
-                resetCharacter
+                currentTab, selectedClass, availableClasses, skillTreeImages,
+                character, statConfigs, derived, totalPoints, hpChangeValue,
+                
+                // 🌟 新增/修改返回
+                dragState,
+                imageTransformStyle,
+                handleZoom,
+                startDrag, onDrag, stopDrag,
+                
+                updateStat, updateGem, updateCurrentHp, resetCharacter
             };
         }
     }).mount('#app');
