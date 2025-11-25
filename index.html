@@ -260,7 +260,7 @@
 </div>
 
 <script>
-    const { ref, reactive, computed, watch, onMounted } = Vue;
+    const { ref, reactive, computed, watch, onMounted, nextTick } = Vue;
 
     // ... [常量定义] ...
     const defaultStats = { str: 0, per: 0, con: 0, cha: 0, int: 0, dex: 0 };
@@ -443,7 +443,18 @@
             };
             const resetCharacter = () => {
                 if (confirm('确定重置?')) {
-                    character.name = ''; character.stats = { ...defaultStats }; character.currentHp = 6; character.gems = 0; character.notes = '';
+                    character.name = '';
+                    
+                    // 1. 重置属性（这会触发 watch，把 HP 减成 1）
+                    character.stats = { ...defaultStats }; 
+                    character.gems = 0;
+                    character.notes = '';
+                    
+                    // 2. 【关键修改】使用 nextTick 
+                    // 等待上面的 watch 闹腾完之后，再强行把 HP 设定为 6
+                    nextTick(() => {
+                        character.currentHp = 6;
+                    });
                 }
             };
 
