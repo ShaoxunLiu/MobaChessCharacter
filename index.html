@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>角色卡</title>
+    <title>角色卡 (Excel 直读版)</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
-        /* --- 全局变量与基础样式 --- */
+        /* --- 样式保持不变 --- */
         :root {
             --primary: #4a90e2;
             --primary-dark: #357abd;
@@ -20,7 +21,6 @@
             --success: #2ecc71;
             --warning: #f1c40f;
             
-            /* 技能书专用状态色 */
             --skill-locked-bg: #f5f5f5;
             --skill-locked-border: #ddd;
             --skill-locked-text: #aaa;
@@ -57,7 +57,6 @@
 
         button { touch-action: manipulation; }
 
-        /* --- 顶部导航 Tabs --- */
         .tabs {
             flex-shrink: 0;
             display: flex;
@@ -83,7 +82,6 @@
             background-color: rgba(74, 144, 226, 0.1);
         }
 
-        /* --- 主内容滚动区域 --- */
         .main-content {
             flex: 1;
             overflow-y: auto;
@@ -92,7 +90,6 @@
             overscroll-behavior: contain;
         }
 
-        /* --- 角色卡样式 --- */
         .header {text-align: center;margin-bottom: 15px;}
         .header h1 {font-size: 24px;margin: 0;color: var(--primary);}
         .input-group {margin-bottom: 15px;}
@@ -123,84 +120,26 @@
         .current-hp-value {color: var(--accent);}
         .notes-area textarea {width: 100%;height: 100px;padding: 10px;border: 1px solid var(--border);border-radius: 6px;box-sizing: border-box;font-size: 14px;resize: vertical;}
 
-        /* --- 技能树 (图片版) 样式 --- */
         .skill-tree-content select {width: 100%;padding: 10px;margin-bottom: 15px;border: 1px solid var(--border);border-radius: 6px;font-size: 16px;}
         .skill-tree-image-container {width: 100%;height: 400px;border: 1px solid var(--border);border-radius: 6px;background-color: #f9f9f9;overflow: hidden;position: relative;}
         .skill-tree-image-container img {max-width: none;width: 100%;min-width: 300px;display: block;touch-action: none;user-select: none;transform-origin: 0 0;cursor: grab;}
         .skill-tree-image-container img.is-dragging {cursor: grabbing;}
 
-        /* --- 🌟 技能书 (Tier Mode) 样式 --- */
-        
-        /* 职业选择导航 */
-        .sb-nav-container {
-            position: relative;
-            margin-bottom: 15px;
-        }
-        .sb-nav-container::after {
-            content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 20px;
-            background: linear-gradient(to right, transparent, var(--card-bg));
-            pointer-events: none;
-        }
-        .sb-nav-container::before {
-            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 20px;
-            background: linear-gradient(to left, transparent, var(--card-bg));
-            pointer-events: none;
-            z-index: 2;
-        }
+        .sb-nav-container {position: relative;margin-bottom: 15px;}
+        .sb-nav-container::after {content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 20px;background: linear-gradient(to right, transparent, var(--card-bg));pointer-events: none;}
+        .sb-nav-container::before {content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 20px;background: linear-gradient(to left, transparent, var(--card-bg));pointer-events: none;z-index: 2;}
 
-        .sb-class-nav {
-            display: flex;
-            gap: 10px;
-            overflow-x: auto;
-            padding: 5px 5px 15px 5px;
-            touch-action: pan-x; 
-            cursor: grab;
-            user-select: none;
-            -webkit-user-select: none;
-        }
+        .sb-class-nav {display: flex;gap: 10px;overflow-x: auto;padding: 5px 5px 15px 5px;touch-action: pan-x; cursor: grab;user-select: none;-webkit-user-select: none;}
         .sb-class-nav:active { cursor: grabbing; }
         
-        .sb-class-btn {
-            white-space: nowrap;
-            padding: 6px 14px;
-            border-radius: 15px;
-            border: 1px solid var(--border);
-            background: white;
-            color: var(--text);
-            font-size: 14px;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: all 0.2s;
-            pointer-events: auto;
-        }
-        .sb-class-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-            box-shadow: 0 2px 5px rgba(74, 144, 226, 0.3);
-            transform: scale(1.05);
-        }
+        .sb-class-btn {white-space: nowrap;padding: 6px 14px;border-radius: 15px;border: 1px solid var(--border);background: white;color: var(--text);font-size: 14px;cursor: pointer;flex-shrink: 0;transition: all 0.2s;pointer-events: auto;}
+        .sb-class-btn.active {background: var(--primary);color: white;border-color: var(--primary);box-shadow: 0 2px 5px rgba(74, 144, 226, 0.3);transform: scale(1.05);}
 
-        /* 列表与卡片 */
         .sb-tier-row { display: flex; margin-bottom: 20px; border-bottom: 1px dashed var(--border); padding-bottom: 15px; }
         .sb-tier-label { width: 30px; flex-shrink: 0; font-family: "Times New Roman", serif; font-size: 24px; font-weight: bold; color: var(--primary-dark); border-right: 3px solid var(--primary); margin-right: 12px; display: flex; align-items: flex-start; justify-content: center; padding-top: 5px; }
         .sb-tier-skills { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 8px; }
 
-        .sb-skill-card {
-            aspect-ratio: 1;
-            border-radius: 6px;
-            padding: 5px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            cursor: pointer;
-            font-size: 12px;
-            transition: transform 0.1s;
-            user-select: none;
-            position: relative;
-        }
+        .sb-skill-card {aspect-ratio: 1;border-radius: 6px;padding: 5px;display: flex;flex-direction: column;justify-content: center;align-items: center;text-align: center;cursor: pointer;font-size: 12px;transition: transform 0.1s;user-select: none;position: relative;}
         .sb-skill-card:active { transform: scale(0.96); }
         .sb-skill-name { font-weight: bold; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         .sb-skill-type { font-size: 10px; margin-top: 2px; opacity: 0.8; }
@@ -209,43 +148,10 @@
         .sb-skill-card.available { background: var(--skill-avail-bg); border: 1px dashed var(--skill-avail-border); color: var(--text); }
         .sb-skill-card.learned { background: var(--skill-learned-bg); border: 2px solid var(--skill-learned-border); color: var(--skill-learned-text); font-weight: bold; }
 
-        /* 统计栏 */
-        .sb-stats-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: var(--text-light);
-            background: #f9f9f9;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
+        .sb-stats-bar {display: flex;justify-content: space-between;align-items: center;margin-bottom: 10px;font-size: 14px;color: var(--text-light);background: #f9f9f9;padding: 10px;border-radius: 6px;border: 1px solid var(--border);}
 
-        /* --- 通用弹窗 (Modal) --- */
-        .modal-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            backdrop-filter: blur(2px);
-        }
-        .modal-content {
-            background: white;
-            width: 100%;
-            max-width: 400px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            overflow: hidden;
-            animation: modalPop 0.2s ease-out;
-            display: flex;
-            flex-direction: column;
-            max-height: 85%;
-        }
+        .modal-overlay {position: absolute;top: 0; left: 0; right: 0; bottom: 0;background: rgba(0,0,0,0.6);display: flex;justify-content: center;align-items: center;padding: 20px;backdrop-filter: blur(2px);}
+        .modal-content {background: white;width: 100%;max-width: 400px;border-radius: 12px;box-shadow: 0 10px 25px rgba(0,0,0,0.2);overflow: hidden;animation: modalPop 0.2s ease-out;display: flex;flex-direction: column;max-height: 85%;}
         @keyframes modalPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
         .modal-header { padding: 15px; background: #f8f9fa; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
@@ -256,17 +162,7 @@
         .skill-detail-row { margin-bottom: 8px; font-size: 14px; display: flex; }
         .skill-detail-label { font-weight: bold; width: 50px; color: var(--text-light); flex-shrink: 0; }
         
-        /* 🌟 修改后的描述区域样式 */
-        .skill-detail-desc { 
-            background: #f0f7ff; 
-            padding: 10px; 
-            border-radius: 6px; 
-            margin-top: 15px; 
-            color: #333; 
-            line-height: 1.6; /* 增加行高 */
-            font-size: 15px; 
-            border-left: 3px solid var(--primary);
-        }
+        .skill-detail-desc { background: #f0f7ff; padding: 10px; border-radius: 6px; margin-top: 15px; color: #333; line-height: 1.6; font-size: 15px; border-left: 3px solid var(--primary);}
         
         .modal-footer { padding: 15px; border-top: 1px solid var(--border); text-align: center; }
         .btn-action { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
@@ -274,21 +170,13 @@
         .btn-forget { background: var(--accent); color: white; }
         .btn-locked { background: #ddd; color: #888; cursor: not-allowed; }
 
-        /* --- 已学技能列表专用样式 --- */
         .learned-list-group { margin-bottom: 15px; }
         .learned-list-class { font-weight: bold; color: var(--primary); margin-bottom: 5px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
-        .learned-list-item { 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 10px; background: #f9f9f9; border-radius: 6px; margin-bottom: 5px; 
-            cursor: pointer; border: 1px solid transparent;
-        }
+        .learned-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f9f9f9; border-radius: 6px; margin-bottom: 5px; cursor: pointer; border: 1px solid transparent;}
         .learned-list-item:hover { background: #fff; border-color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .learned-item-name { font-weight: bold; font-size: 14px; }
-        .learned-item-remove { 
-            color: var(--accent); font-weight: bold; padding: 2px 8px; border-radius: 4px; 
-        }
+        .learned-item-remove { color: var(--accent); font-weight: bold; padding: 2px 8px; border-radius: 4px; }
         .learned-item-remove:hover { background: rgba(255, 107, 107, 0.1); }
-
     </style>
 </head>
 <body>
@@ -393,7 +281,8 @@
 
         <div v-if="currentTab === 'skillBook'" class="skill-book-content">
             <div class="sb-stats-bar">
-                <span><strong>已学技能:</strong> {{ sbLearnedCount }}</span>
+                <span v-if="isLoadingSkills">正在读取 Excel...</span>
+                <span v-else><strong>已学技能:</strong> {{ sbLearnedCount }}</span>
                 <div style="display:flex; gap:10px;">
                     <button @click="sbShowLearnedList = true" style="padding: 6px 10px; background: var(--primary); border:none; border-radius:4px; color:white; font-size:12px; font-weight:bold;">
                         📜 查看列表
@@ -416,7 +305,11 @@
                 </div>
             </div>
 
-            <div v-if="sbCurrentClass && sbTieredSkills" class="sb-skill-list">
+            <div v-if="isLoadingSkills" style="text-align: center; color: #999; margin-top: 50px;">
+                正在加载数据...<br>
+                <small>请确保 'SpellBook2.xlsx' 文件存在且您正在使用服务器环境运行。</small>
+            </div>
+            <div v-else-if="sbCurrentClass && sbTieredSkills" class="sb-skill-list">
                 <div v-for="(skills, tier) in sbTieredSkills" :key="tier" class="sb-tier-row">
                     <div class="sb-tier-label">{{ toRoman(Number(tier) + 1) }}</div>
                     <div class="sb-tier-skills">
@@ -430,7 +323,9 @@
                     </div>
                 </div>
             </div>
-            <div v-else style="text-align: center; color: #999; margin-top: 50px;">正在加载技能数据...</div>
+            <div v-else style="text-align: center; color: #999; margin-top: 50px;">
+                该职业暂无数据或文件读取失败
+            </div>
         </div>
     </div>
 
@@ -503,379 +398,12 @@
 <script>
     const { ref, reactive, computed, watch, onMounted, nextTick } = Vue;
 
-    // --- CSV 数据源 ---
-    const rawSkillData = {
-        "战士": `Ability,Pre-requisite,Type,Cool Down,Effect
-盾墙,,主动,1,获得3护盾，持续1回合
-护甲,盾墙,被动,,受到攻击伤害-1
-嘲讽,护甲,主动,3,距离3内1单位必须攻击你，持续1回合
-锻体,盾墙,被动,,体质+1
-盾墙II,护甲,被动,,盾墙额外提供3护盾
-护甲II,盾墙II,被动,,受到攻击伤害-1
-锻体II,锻体，盾墙II,被动,,体质+1
-堡垒化,盾墙,反应,1,回合结束且该回合没有移动时，受到伤害-1，持续1回合
-战到最后,锻体II,反应,Inf,阵亡时，将生命值改为1且不会受到伤害，持续1回合
-嘲讽II,嘲讽,反应,1,范围3内单位攻击时，将目标改为你
-反击,嘲讽,主动,2,记录受到的伤害为X，持续1回合，你的下1次攻击额外造成X伤害
-反击II,反击,反应,1,受到攻击时，若攻击来源与你的距离小于等于你的感知，则对攻击来源进行1次攻击
-盾墙III,护甲II，堡垒化,被动,,盾墙提供的护盾不会因为持续时间结束消失。拥有护盾时受到伤害-1
-嗜血,,被动,,攻击造成伤害时，若目标和你的距离为1，则回复造成伤害/2的生命
-暴怒,,被动,,受到攻击时，获得1怒气。回合结束时，如果你该回合没有攻击，则移除所有怒气。每个怒气使攻击力+1
-战吼,暴怒,主动,2,消耗1怒气，使你攻击力+2，持续2回合
-血腥狂袭,暴怒，嗜血,主动,1,消耗1怒气，进行1次攻击
-暴怒II,暴怒,被动,,攻击时获得1个怒气
-奔袭,暴怒,主动,2,消耗1怒气，获得等同于怒气数量的移动力
-泄愤,暴怒II,主动,3,消耗3怒气，对范围2内所有单位进行1次攻击
-大快朵颐,锻体，嗜血,主动,2,回复6生命
-战吼II,战吼,主动,3,获得3怒气
-奔袭II,奔袭,反应,3,受到伤害时，下回合获得3移动力
-背水一战,战吼II，泄愤,主动,3,消耗2怒气，本回合下次攻击额外造成已损失生命值/2的伤害
-诸武精通,,被动,,力量+1
-盾牌猛击,盾墙，诸武精通,主动,3,本回合下1次攻击造成伤害等于力量+护盾量
-旋风斩,诸武精通,主动,3,对范围2内所有单位造成等于攻击力的伤害
-招架,诸武精通,反应,2,受到攻击时，若来源的距离为1，则受到的伤害-3
-掷矛,诸武精通,主动,2,对距离3内1单位造成等于攻击力的伤害
-精准打击,掷矛,反应,1,攻击时，感知/6概率则此次攻击伤害*2
-精准打击II,精准打击,被动,,精准打击的成功概率+1/3
-精准打击III,精准打击II,被动,,精准打击改为被动
-诸武精通II,招架，旋风斩,被动,,力量+1
-掷矛II,掷矛,被动,,掷矛视为1次攻击
-盾牌猛击II,盾牌猛击，诸武精通II,反应,1,使用盾牌猛击后，本回合的下一次攻击造成伤害时，若你的力量大于目标的体质，则使目标眩晕（无法行动），持续1回合
-必胜一击,诸武精通II，精准打击II,反应,2,成功触发精准打击时，无视目标任意数量的技能效果`,
-        "德鲁伊": `Ability,Pre-requisite,Type,Cool Down,Effect
-根须缠绕,自然亲和,主动,2,对距离3内1单位造成2伤害，并使其移动力-2，持续1回合
-厚皮肤,巨熊姿态,被动,,野兽姿态下受到伤害-1
-尖牙,恐狼姿态,被动,,野兽姿态下攻击无视目标2个技能效果
-荆棘护甲,根须缠绕,反应,1,受到攻击时，若攻击来源与你的距离小于等于2，则对攻击来源造成3伤害
-荆棘护甲II,荆棘护甲,被动,,受到攻击伤害-2。灼烧状态使你在回合开始时额外失去1生命
-巨熊姿态,野兽之心,主动,3,进入野兽姿态，魅力-3，体质+2，力量+1，不能施放主动技能（除非特殊说明），持续3回合
-巨熊姿态II,巨熊姿态,被动,,巨熊姿态额外提供体质+1，力量+1
-恐狼姿态,野兽之心,主动,3,进入野兽姿态，移动力+1，力量+1，不能施放主动技能（除非特殊说明），持续3回合
-恐狼姿态II,恐狼姿态,被动,,恐狼姿态额外提供移动力+1，力量+1
-狼的撕咬,恐狼姿态,主动,2,可以且只可以在恐狼姿态状态下施放，移动至距离3内1单位的邻格，对该单位造成3伤害并回复3生命
-狼的撕咬II,恐狼姿态II，狼的撕咬,被动,,恐狼姿态下攻击额外造成3伤害并回复3生命
-利爪,猛禽姿态,被动,,野兽姿态下攻击力+2
-猛禽姿态,野兽之心,主动,3,进入野兽姿态，力量+1，感知+1，不能施放主动技能（除非特殊说明），持续3回合
-猛禽姿态II,猛禽姿态,被动,,猛禽姿态额外提供力量+1，感知+1
-神莓术,治愈之雨,主动,1,为范围1内1单位回复等于魅力/2的生命
-藤蔓之鞭,根须缠绕,主动,2,对距离3内1单位造成3伤害，并使其向你的方向移动1格
-洗尽铅华,治愈之雨,主动,3,为范围3内1单位移除至多2个倒置摆放的技能状态
-枭的扑杀,猛禽姿态,主动,2,可以且只可以在猛禽姿态状态下施放，移动至3距离内任意一格，本回合内下次攻击额外造成3伤害
-枭的扑杀II,猛禽姿态II， 枭的扑杀,反应,1,攻击时，若目标敏捷小于你的感知，则1/2概率本次攻击伤害*2
-熊的怒吼,巨熊姿态,主动,2,可以且只可以在巨熊姿态状态下施放，对范围2内所有单位造成2伤害。范围2内魅力最低的单位下回合必须攻击你，持续1回合
-熊的怒吼II,巨熊姿态II，熊的怒吼,被动,,熊的怒吼额外造成等于力量的伤害。熊的怒吼使另1单位（魅力次低）下回合必须攻击你，持续1回合
-野兽之心,,被动,,每1魅力+2最大生命。你可以在野兽姿态下使用巨熊姿态，恐狼姿态，或猛禽姿态，使用时移除已有的野兽姿态效果
-野兽之心II,厚皮肤，尖牙，利爪,被动,,野兽姿态下体质+2，力量+1
-月光调律,自然亲和II,反应,2,回合开始时，获得1法术力
-月光调律II,月光调律,被动,,技能额外造成等于魅力/2的伤害
-月光调律III,月光调律II，月华,被动,,技能额外造成等于魅力/2的伤害
-月光射线,月光调律,主动,2,消耗1法术力，对直线范围距离4内所有单位造成等于魅力的伤害
-月华,月光射线,主动,3,消耗1法术力，对距离3范围2内所有单位造成3伤害，并移除1个正置摆放的技能状态（被动技能不可移除）
-召唤树人,藤蔓之鞭,主动,4,在范围等于感知内召唤1个树人单位，树人单位拥有攻击力3，射程1，移动力0，最大生命6  ，持续4回合
-召唤树人II,召唤树人,主动,2,在范围等于感知内召唤1个树人单位，树人单位拥有攻击力3，射程1，移动力0，最大生命6  ，持续2回合
-治愈之雨,自然亲和,主动,3,为范围3内所有单位回复3生命
-治愈之雨II,治愈之雨，月光调律II,被动,,治愈之雨额外回复等于魅力的生命
-自然亲和,,被动,,魅力+1
-自然亲和II,自然亲和,被动,,魅力+1
-自然亲和III,月光调律II,被动,,魅力+1
-自然之怒,自然亲和III，根须缠绕,反应,1,范围3内有单位施放技能时，对其造成3伤害`,
-        "法师": `Ability,Pre-requisite,Type,Cool Down,Effect
-奥术冲击,奥术飞弹,主动,3,消耗1法术力，对直线范围距离等于感知内所有单位造成5伤害
-奥术飞弹,法术亲和,主动,1,消耗1法术力，对距离等于感知内1单位造成3伤害
-奥术折跃,法术亲和II,主动,3,消耗1法术力，移动至范围等于感知内任意一格
-奥术智慧,法术亲和,被动,,智力+1
-奥术智慧II,奥术智慧，法术亲和II,被动,,智力+1
-暴风雪,冰霜新星，结霜II,主动,4,消耗2法术力，施放暴风雪及回合开始时，对范围5内所有单位造成2伤害，若目标处于冰霜状态，则额外造成4伤害，持续2回合
-冰铠,结霜,主动,2,消耗1法术力，使距离3内1单位获得3护盾且受到攻击伤害-1，持续2回合
-冰铠II,冰铠，法力护盾,被动,,冰铠额外提供3护盾。处于冰铠状态且拥有护盾的单位受到伤害-2
-冰枪,结霜,主动,1,消耗1法术力，对距离3内1单位造成2伤害，若目标处于冰霜状态，则额外造成2伤害
-冰枪II,冰枪,被动,,冰枪额外造成1伤害，若目标处于冰霜状态，则再额外造成2伤害
-冰霜新星,结霜,主动,2,消耗1法术力，对范围3内所有单位造成2伤害，并对魅力最低的单位施加冰霜（移动力-1），持续2回合
-冰霜新星II,冰霜新星，结霜II,反应,2,施放冰霜新星时，冰霜新星对额外1单位（魅力次低）施加冰霜（移动力-1），持续2回合。冰霜新星对冰霜状态的单位额外造成4伤害
-点燃,法术亲和,主动,1,消耗1法术力，对距离3内1单位造成2伤害，并施加灼烧（回合开始时失去1生命），持续1回合
-点燃II,热力感知II,主动,1,对距离3内1单位造成2伤害，并施加灼烧（回合开始时失去1生命），持续1回合
-法力轰击,法术亲和II,主动,1,消耗所有法术力，对距离等于感知内1单位造成等于消耗的法术力*2的伤害
-法力护盾,法术亲和II,主动,2,消耗1法术力，下1次受到技能效果时，免疫该效果，持续1回合
-法力护盾II,法力护盾，杀人魔法,反应,2,成为技能目标时，你可以消耗1法术力并免疫该技能的效果
-法术亲和,,主动,1,获得1法术力
-法术亲和II,法术亲和,被动,,法术亲和额外提供1法术力
-法术亲和III,奥术智慧II,被动,,法术亲和额外提供1法术力
-寒冰烈火,热力感知，冰枪II,反应,1,对灼烧状态的单位施加冰霜效果时，移除所有灼烧效果，每移除1个造成5伤害
-火球术,热浪,主动,3,消耗1法术力，对距离3内1单位造成6伤害，并施加灼烧（回合开始时失去1生命），持续3回合
-火球术II,火球术，热力感知,被动,,火球术对灼烧状态的单位额外造成3伤害
-火球术III,火球术II,主动,3,消耗1法术力，对距离3内1单位造成6伤害，并施加灼烧（回合开始时失去1生命），持续3回合
-火焰喷射,热浪,主动,2,消耗2法术力，对锥形范围距离3内所有单位造成6伤害，并对魅力最低的单位施加灼烧（回合开始时失去1生命），持续2回合
-结霜,法术亲和,主动,1,消耗1法术力，对距离3内1单位造成1伤害，并施加冰霜（移动力-1），持续1回合
-结霜II,结霜,反应,1,施放结霜时，对距离3内另1单位造成1伤害，并施加冰霜（移动力-1），持续1回合
-冥想,奥术智慧,主动,1,从你的1个背面朝上的技能上移除1个回合指示物
-冥想II,奥术智慧II，冥想,主动,0,消耗1法术力，从你的1个背面朝上的技能上移除1个回合指示物
-全知全能,冥想II，法术亲和III,被动,,施放技能时可以不消耗法术力
-热浪,点燃,主动,2,消耗1法术力，对范围3内所有单位造成2伤害，并对魅力最低的单位施加灼烧（回合开始时失去1生命），持续2回合
-热力感知,热浪,反应,1,对范围等于感知内处于灼烧状态的单位造成技能伤害时，获得1法术力
-热力感知II,热力感知,被动,,触发热力感知的技能额外造成3伤害
-杀人魔法,法力轰击,主动,2,消耗2法术力，对距离等于感知内1单位造成等于智力的伤害
-杀人魔法II,法力护盾，杀人魔法,被动,,杀人魔法额外造成等于智力的伤害
-自爆,热力感知II,主动,3,消耗5生命，对范围3内所有单位造成12伤害`,
-        "牧师": `Ability,Pre-requisite,Type,Cool Down,Effect
-定身咒,心灵洞悉II,主动,2,消耗1法术力，使距离等于感知内1单位1/2概率获得禁锢（移动力=0），持续1回合
-定身咒II,定身咒,被动,,使用定身咒时，若你的感知大于目标敏捷则定身咒必定生效
-干扰神志,心灵洞悉II,反应,2,距离等于感知内有单位施放技能时，你可以消耗1法术力并取消该技能的效果（该技能进入冷却）
-噤声,干扰神志,主动,3,消耗2法术力，使距离等于感知内1单位获得沉默（无法施放技能），持续1回合
-精神强念,心灵震爆,主动,2,消耗1法术力，对距离等于感知内1单位造成其智力*2的伤害
-精神强念II,精神强念,反应,2,距离等于感知内有单位消耗法术力时，你可以消耗1法术力对其造成其智力*2的伤害
-净化,"女神加护II, 心灵洞悉",反应,3,感知范围内任1单位回合开始时，你可以消耗1法术力，为该单位移除任意数量倒置摆放的技能状态
-净化II,净化,被动,,净化改为对范围等于感知内任意数量角色移除任意数量倒置摆放的技能状态
-攫取思绪,干扰神志,反应,3,距离等于感知内有单位获得法术力时，改为你获得1法术力
-力量祝福,女神加护,主动,3,使距离等于感知内1角色获得祝福状态，获得攻击力+1，持续3回合
-力量祝福II,力量祝福,被动,,力量祝福提供的攻击力+1
-女神加护,,被动,,受到技能伤害-1
-女神加护II,女神加护,被动,,受到技能伤害-1
-祈祷,女神加护,主动,1,获得1法术力
-祈祷II,祈祷，女神加护II,被动,,祈祷额外获得魅力/2法术力
-入圣,善恶庇护，神界加速,被动,,获得等于你拥有的祝福数量的攻击力，攻击时回复等于你拥有的祝福数量的生命
-入圣II,入圣,被动,,力量祝福，智慧祝福，和迅捷祝福改为被动
-善恶庇护,智慧祝福,主动,3,使距离等于感知内1个拥有祝福状态的单位获得祝福状态，且受到技能伤害-2，魅力+2，持续3回合
-神界加速,力量祝福，迅捷祝福,主动,3,使距离等于感知内1个拥有祝福状态的单位获得祝福状态，且可以额外进行1次攻击，持续3回合
-神圣惩击,女神加护,主动,2,消耗1法术力，对射程等于感知内1单位造成等于魅力的伤害
-神圣新星,治疗波，神圣惩击,主动,2,消耗2法术力，对范围3内任意数量单位造成等于魅力的伤害，并为任意数量单位回复等于魅力的生命
-神圣新星II,神圣新星,被动,,神圣新星额外回复等于魅力的生命，或额外造成等于魅力的伤害
-圣光灌注,治疗之触,反应,1,距离等于感知内有单位受到伤害时，你可以消耗1法术力，为受到伤害的单位回复6生命
-瓦解心智,心灵洞悉,主动,2,消耗1法术力，使距离等于感知内1单位获得失神（行动力-1），持续1回合
-感召,心灵洞悉，女神加护,反应,2,范围等于感知内有单位受到伤害时，获得1法术力
-希望信标,祈祷II，圣光灌注,主动,3,消耗2法术力，使距离等于感知内1单位受到治疗效果*2，持续3回合
-心灵洞悉,,被动,,感知+1
-心灵洞悉II,瓦解心智,被动,,感知+1
-心灵震爆,心灵洞悉,主动,2,消耗1法术力，对距离等于感知内1单位造成等于感知的伤害
-迅捷祝福,女神加护,主动,3,使距离等于感知内1单位获得祝福状态，获得移动力+1，持续3回合 
-迅捷祝福II,迅捷祝福,被动,,迅捷祝福提供的移动力+1
-治疗波,治疗之触,主动,1,消耗1法术力，为范围3内任意数量单位回复3生命
-治疗之触,女神加护,反应,1,攻击时，将伤害改为回复等于魅力的生命
-圣光灌注II,圣光灌注，女神加护II,被动,,圣光灌注额外回复等于魅力的生命
-智慧祝福,女神加护,主动,3,使距离等于感知内1单位获得祝福状态，获得行动力+1，持续3回合
-智慧祝福II,智慧祝福,被动,,智慧祝福提供的行动力+1`,
-        "猎人": `Ability,Pre-requisite,Type,Cool Down,Effect
-捕兽网,装弹,主动,3,消耗1弹药，使射程3内1单位有1/3概率获得禁锢（移动力=0），持续1回合。若目标体质大于其敏捷，则概率+1/3
-超距射击,锐利的眼,主动,2,本回合下次攻击射程+2
-超距射击II,超距射击,被动,,超距射击使本回合下次攻击额外造成你与目标间距离的伤害
-穿甲弹,双管猎枪,主动,3,消耗1弹药，对距离等于射程内1单位造成3伤害，并在本回合内无视其任意数量的技能效果
-穿梭,,主动,3,移动至多2格
-穿梭II,连跑带打,反应,3,使用穿梭时，获得1行动点
-穿透射击,十字弩,主动,3,本回合下次攻击无视目标任意数量的技能效果
-穿云箭,超距射击,主动,3,对直线范围距离等于射程内第1个单位造成等于你与其之间距离的伤害
-穿云箭II,穿云箭，穿透射击,反应,3,当你攻击直线范围内的单位时，对该直线范围内所有单位进行1次攻击
-独自狩猎,追踪术,被动,,范围1内没有单位时攻击额外造成2伤害
-精准射击,锐利的眼,主动,2,本回合下次攻击有感知/6概率造成伤害*2
-精准射击II,精准射击,被动,,精准射击改为被动
-精准射击III,精准射击II,被动,,若目标敏捷小于你的感知，则精准射击必定生效
-扩容弹夹,双管猎枪,被动,,弹药上限+1。装弹额外获得1弹药
-连跑带打,穿梭，十字弩,反应,2,结束移动时，对射程内1单位进行1次攻击
-流血射击,锐利的眼,主动,3,本回合下次攻击使目标获得流血（回合开始时失去1生命），持续3回合
-麻醉镖,双管猎枪,主动,3,消耗1弹药，对距离等于射程内1单位造成1伤害，并有1/2概率使其获得睡眠（无法行动，受到伤害解除睡眠状态），持续1回合
-瞄准,,被动,,若你在本回合未移动，则射程+1
-弩箭精通,锐利的眼,反应,1,主动施放精准射击，超距射击，流血射击或穿透射击时，获得1行动点
-强弩,十字弩,主动,3,对距离等于射程内1单位造成3伤害并将其向远离你的方向移动2格
-燃烧弹,双管猎枪,主动,2,消耗1弹药，对距离等于射程范围1内所有单位造成4伤害，并对魅力最低的单位施加灼烧（回合开始时失去1生命），持续3回合
-锐利的眼,瞄准,被动,,感知+1
-锐利的眼II,穿云箭,被动,,感知+1
-十字弩,瞄准,被动,,你的最大射程为3，攻击与你距离等于3的单位时额外造成1伤害
-十字弩II,强弩，连跑带打,被动,,攻击与你距离等于3的单位时额外造成2伤害
-双管猎枪,装弹,被动,,你的弹药上限为2。攻击时，你可以消耗1弹药并使攻击造成3伤害
-双管猎枪II,扩容弹夹,被动,,双管猎枪改为造成5伤害。消耗弹药的技能额外造成2伤害
-双连击,双管猎枪II,反应,3,攻击时，若此次攻击消耗弹药，你可以额外消耗1弹药并对攻击目标额外进行1次攻击（额外攻击不消耗行动点）
-霰弹,双管猎枪II,反应,3,攻击与你距离为1的目标时，若此次攻击消耗弹药，你可以额外消耗任意数量的弹药，每消耗1个弹药对目标额外进行1次攻击
-寻血猎犬,捕兽网,主动,3,在范围1内召唤1个猎犬单位，猎犬单位拥有攻击力3，射程1，移动力3，最大生命3，持续3回合
-寻血猎犬II,寻血猎犬,被动,,猎犬单位攻击流血状态的目标时额外造成3伤害
-照明弹,装弹,主动,2,消耗1弹药，射程内所有单位展示手牌
-装弹,,主动,1,获得2弹药
-追猎,穿梭,被动,,敏捷+1
-追猎II,追猎,被动,,敏捷+1
-追踪术,锐利的眼,主动,2,使距离等于射程内1单位获得标记（被你攻击时无视射程限制），持续2回合`,
-        "术士": `Ability,Pre-requisite,Type,Cool Down,Effect
-黑暗契约,,主动,1,获得1邪能，失去等于你拥有邪能数量*2的生命
-黑暗契约II,黑暗契约,被动,,使用黑暗契约时至多额外获得等于魅力/2的邪能
-暗影箭,黑暗契约,主动,1,消耗1邪能，对范围等于感知内1单位造成4伤害
-灵魂虹吸,黑暗契约,反应,1,使用技能造成伤害时，若你消耗了邪能，则回复等于伤害量/2的生命
-灵魂虹吸II,灵魂虹吸,被动,,灵魂虹吸改为被动
-混沌波动,黑暗契约,主动,2,消耗1邪能，对范围2内所有单位造成2伤害，并对魅力最低的单位施加失神（行动力-1），持续1回合
-邪能冲击,暗影箭,主动,2,消耗2邪能，对直线范围距离4内所有单位造成6伤害
-暗影箭II,暗影箭，黑暗契约II,被动,,暗影箭额外消耗1邪能，额外造成4伤害
-着魔,黑暗契约II,主动,1,消耗1邪能，从你的1个背面朝上的技能上移除1个回合指示物（不能从着魔上移除回合指示物）
-着魔II,着魔,被动,,使用着魔时获得1行动力
-黑魔法,黑暗契约,被动,,你可以用邪能代替法术力。你可以用法术力代替邪能
-黑暗笼罩,混沌波动，黑暗契约II,主动,2,消耗2邪能，对范围2内所有单位造成其感知*2的伤害，并对魅力最低的单位施加致盲III（感知-3），持续1回合
-地狱烈焰,混沌波动，黑暗契约II,主动,3,消耗2邪能，对范围2内所有单位造成6伤害，并对魅力最低的单位施加灼烧II（回合开始时失去2生命），持续3回合
-魂器,黑魔法,反应,1,受到伤害时，你可以消耗任意数量的法术力，每消耗1法术力使受到的伤害-3
-黑暗契约III,着魔,被动,,使用黑暗契约时至多额外获得等于魅力/2的邪能
-堕入暗面,黑暗契约III，暗影箭II,主动,2,消耗2邪能，对距离等于感知内1单位造成等于你的魅力+目标魅力的伤害
-堕入暗面II,堕入暗面,反应,1,造成技能伤害时，额外造成等于你的魅力+目标魅力的伤害
-魂器II,魂器,反应,3,使用魂器消耗法术力时，每消耗1法术力对伤害来源造成3伤害
-蛊毒,,主动,3,对距离2内1单位施加中毒（回合开始时失去1生命），持续3回合
-脆弱,,主动,2,对距离2内1单位施加易碎（受到攻击伤害+1），持续2回合
-蛊毒II,蛊毒,被动,,蛊毒改为施加中毒III（回合开始时失去3生命）
-魂魄出窍,脆弱，黑魔法,主动,3,消耗1法术力，对距离等于感知内1单位施加涣散II（受到技能伤害+2），持续3回合
-炼体,蛊毒,被动,,体质+1
-蛊毒III,蛊毒II,反应,3,使用蛊毒时，你可以消耗1邪能并额外对1个距离2内的单位施加中毒III（回合开始时失去3生命），持续3回合
-炼体II,炼体,被动,,体质+1
-钻心剜骨,黑魔法,主动,2,消耗2法术力，对距离等于感知内1单位造成等于目标拥有的倒置摆放的技能状态数量*2的伤害（中毒III视为3个技能状态，其他状态同理）
-钻心剜骨II,钻心剜骨,被动,,钻心剜骨改为对范围等于感知内任意数量单位造成其拥有的倒置摆放的技能状态数量*3的伤害（中毒III视为3个技能状态，其他状态同理）
-恶魔契约,,主动,Inf,消耗当前生命/2的生命，在范围1内召唤1个恶魔单位，恶魔单位拥有攻击力3，射程1，移动力2，最大生命等于你消耗的生命值。当你不操控恶魔单位时，移除该技能上所有回合指示物
-统帅恶魔,恶魔契约,主动,2,消耗1邪能，选择射程等于感知内1单位，将恶魔单位移动至该单位的邻格
-邪魔共鸣,恶魔契约,被动,,魅力+1
-恶魔契约II,邪魔共鸣,被动,,由你操控的恶魔单位攻击力等于你的魅力
-地狱火,恶魔契约II,反应,1,由你操控的恶魔单位回合结束时，你可以消耗1邪能，并使其对其范围1内所有单位造成等于你魅力的伤害
-邪魔共鸣II,邪魔共鸣,被动,,魅力+1
-恶魔爆裂,邪魔共鸣II,主动,3,消耗3邪能，使由你操控的恶魔阵亡，对其范围1内所有单位造成其生命值的伤害
-末日降临,邪魔共鸣II,反应,Inf,阵亡时，将生命改为你的最大生命/2，并移除所有技能效果。你无法使用主动和反应技能，且地狱火改为被动并不再消耗邪能。你成为恶魔单位
-黑暗祭礼,黑暗契约II,反应,Inf,游戏开始时，获得3邪能`,
-        "刺客": `Ability,Pre-requisite,Type,Cool Down,Effect
-刀尖舔血,,被动,,你的最大射程为1，移动力+1 
-灵巧身姿,刀尖舔血,被动,,敏捷+1
-闪避,灵巧身姿,反应,1,受到攻击时，若攻击来源的感知小于你的敏捷，你有2/3概率免疫此次攻击伤害
-暴击,刀尖舔血,被动,,攻击距离等于1的单位时有感知/6概率造成攻击伤害*2
-灵巧身姿II,闪避,被动,,敏捷+1
-暴击II,暴击,被动,,暴击触发概率+1/3
-刀尖舔血II,刀尖舔血,被动,,刀尖舔血使你的攻击力改为敏捷/2
-先发制人,暴击,反应,Inf,攻击时，此次攻击必定触发暴击（在进行暴击判定前施放）
-暴击III,暴击II,被动,,暴击触发时改为造成攻击伤害*3
-孤立打击,暴击,反应,1,攻击时，若目标范围1内除你以外没有其他单位，则此次攻击必定触发暴击
-弑君突刺,暴击II,主动,3,向直线范围移动至多4格，在接触第1个单位前停下，并对该单位进行1次攻击。使用弑君突刺后无法移动
-舍身一击,先发制人,反应,3,攻击时，你可以消耗最大生命/2的生命，此次攻击额外造成3伤害
-飞刀,,主动,2,对距离3内1单位造成2伤害
-飞刀II,飞刀,被动,,飞刀视为攻击
-浸毒匕首,飞刀,反应,2,攻击造成伤害时，目标获得中毒（回合开始时失去1生命），持续2回合
-刀扇,飞刀II,主动,3,对范围2内任意数量单位各进行1次攻击
-隐匿,,主动,2,敏捷/6概率获得隐身（无法成为攻击目标），持续1回合。攻击或移动时移除隐身状态
-偷袭,隐匿，暴击,反应,1,攻击时，若你处于隐身状态，则此次攻击必定触发暴击
-瞬步,灵巧身姿II,主动,2,移动至距离3内1单位的邻格，获得1行动力
-手里剑,飞刀II，暴击,主动,2,对范围3内1单位进行1次攻击，此次攻击伤害-2，并有感知/6概率触发暴击
-手里剑II,手里剑,被动,,使用手里剑时获得1行动力
-浸毒匕首II,浸毒匕首,反应,2,攻击造成伤害时，目标获得中毒（回合开始时失去1生命），持续2回合
-恩赐解脱,浸毒匕首,反应,2,攻击中毒状态的单位时，额外造成等于攻击力的伤害
-恩赐解脱II,恩赐解脱,被动,,恩赐解脱改为额外造成攻击力*目标中毒数量的伤害
-隐匿II,隐匿，闪避,被动,,移动和攻击不再移除隐身状态
-解药,浸毒匕首,反应,3,回合开始时，移除你任意数量倒置摆放的技能状态
-左轮手枪,,被动,,你的弹药上限为6。攻击时，你可以消耗1弹药。消耗弹药的攻击造成1伤害
-快速装填,左轮手枪,主动,1,获得6弹药
-枪炮利刃,左轮手枪，暴击,被动,,你可以对距离等于感知内的单位使用消耗弹药的攻击并有感知/6概率触发暴击
-快速拔枪,快速装填,反应,3,攻击时，消耗至多2弹药，每消耗1弹药额外对目标进行1次攻击
-烟雾弹,快速装填,主动,3,消耗3弹药，对距离等于感知内1单位施加致盲III（感知-3），持续1回合
-左轮手枪II,左轮手枪,被动,,消耗弹药的攻击额外造成1伤害
-快速拔枪II,左轮手枪II，快速拔枪,被动,,快速拔枪改为消耗任意数量的弹药
-乱射,快速拔枪,主动,3,对范围等于感知内任意数量单位进行任意数量次消耗弹药的攻击
-爆头,枪炮利刃，左轮手枪II,反应,1,消耗弹药的攻击触发暴击时，额外造成6伤害（该额外伤害在暴击效果生效后生效）
-爆头II,爆头,被动,,消耗弹药的攻击必定触发暴击`,
-        "骑士": `Ability,Pre-requisite,Type,Cool Down,Effect
-圣盾,,主动,1,获得祝福状态，下1次受到伤害时免疫该伤害，持续1回合
-恩典,圣盾,反应,1,攻击时，获得1法术力
-决心,圣盾,被动,,魅力+1
-辉耀,决心,反应,1,回合结束时，对范围2内所有单位造成等于魅力/2的伤害
-决心II,决心,被动,,魅力+1
-救死扶伤,恩典,主动,2,消耗1法术力，为范围2内1单位回复等于魅力的生命
-英勇,恩典,主动,3,消耗1法术力，获得祝福状态，回合结束时回复等于魅力/2生命，持续3回合
-辉耀II,英勇，辉耀,被动,,辉耀改为对范围2内任意数量单位造成等于魅力的伤害，并为范围2内任意数量单位回复等于魅力/2的生命
-奉献,英勇,反应,1,范围2内有单位受到伤害时，改为你受到等量伤害
-圣光加护,奉献，决心II,被动,,受到伤害-魅力/2
-圣盾II,救死扶伤,主动,3,消耗1法术力，范围2内1单位获得祝福，免疫任意数量的技能效果和伤害，持续1回合
-至圣斩,决心II,反应,1,攻击时，你可以消耗1法术力，此次攻击额外造成等于魅力的伤害
-救死扶伤II,救死扶伤,被动,,救死扶伤额外回复等于魅力的生命
-重甲,,被动,,移动力-1，受到伤害-1。你的最大射程为1
-重击,重甲,主动,1,对距离1内1单位造成4伤害，该伤害无视对手任意数量的技能效果
-勒令对决,重甲,主动,3,消耗所有移动力，选择距离1内1单位，目标必须用第1个行动力攻击你，持续1回合
-重击II,重击,反应,1,被距离等于1的单位攻击时，对攻击来源施放重击
-坚定信念,重甲,被动,,回合结束时获得2护盾
-重甲II,坚定信念,被动,,重甲额外获得受到伤害-1
-坚定信念II,坚定信念,反应,1,回合结束时，若你仅在直线范围内向同1方向移动，则坚定信念额外提供4护盾（未移动时同样提供护盾）
-制裁之锤,重击II,主动,3,本回合下次攻击额外造成力量*2伤害
-信仰之力,坚定信念II,被动,,力量+护盾/2
-站我身后,坚定信念II，勒令对决,反应,1,范围1内单位受到攻击时，将攻击目标改为你
-重甲III,重甲II，信仰之力,被动,,重甲额外获得受到伤害-1
-重击III,制裁之锤,被动,,重击额外造成等于力量的伤害
-人骑合一,,被动,,移动力+1，无法攻击距离等于1的单位
-长柄武器,人骑合一,被动,,攻击距离等于2的单位时额外造成2伤害
-枪骑冲锋,长柄武器,主动,3,本回合下次攻击额外造成等于已消耗移动力的伤害
-突刺,长柄武器,主动,2,对直线范围距离3内所有单位进行1次攻击
-人骑合一II,枪骑冲锋,被动,,人骑合一额外获得移动力+1
-打磨枪尖,长柄武器,被动,,力量+1
-打磨枪尖II,打磨枪尖，突刺,被动,,力量+1
-长柄武器II,打磨枪尖II,被动,,长柄武器改为额外造成等于力量的伤害
-挑飞,突刺,主动,1,本回合下次攻击造成伤害时，若目标体质小于你的力量，则使其获得击倒（行动力-1），持续1回合
-践踏,挑飞,反应,1,移动经过拥有击倒的单位的邻格时，对拥有击倒的单位造成等于力量的伤害
-命定之枪,长柄武器II,反应,Inf,阵亡时，选择距离3内1单位，对其造成力量*3的伤害`,
-        "吟游诗人": `Ability,Pre-requisite,Type,Cool Down,Effect
-爱笑少年,,被动,,魅力+1
-爱笑少年II,爱笑少年,被动,,魅力+1
-安眠曲,演奏II,主动,2,使距离2内1单位有1/2概率获得睡眠（无法行动，受到伤害解除睡眠状态），持续1回合
-安眠曲II,安眠曲，清心浅唱,被动,,若你的魅力大于目标体质则安眠曲必定生效
-察觉,,被动,,感知+1
-察觉II,道破心机,被动,,感知+1
-嘲弄,爱笑少年,主动,3,选择距离2内1单位，该单位魅力-3，持续1回合
-嘲弄II,爱笑少年II，嘲弄,被动,,嘲弄改为使目标魅力=0
-道破心机,察觉,反应,2,范围2内单位回合开始时，有感知/6概率使该单位展示手牌
-反讽,爱笑少年II,反应,3,成为技能目标时，将目标改为施放技能的单位
-反讽II,反讽,被动,,反讽改为范围2内有单位成为技能目标时，将目标改为施放技能的单位
-罐头笑声,道破心机，嘲弄,反应,2,范围2内有单位施放技能时，取消该技能的效果（该技能进入冷却）
-好运,爱笑少年,反应,1,任意单位进行概率判定时，使成功概率增加或减少1/6
-合唱,演奏II,主动,2,对距离2内1单位造成等于范围2内单位数量*2的伤害
-合唱II,合唱，摇滚乐,被动,,合唱改为对范围2内任意数量单位造成等于范围2内单位数量*3的伤害
-激情演说,闪亮登场,主动,3,射程2内1单位1/3概率获得眩晕（行动力=0），持续1回合。若你的魅力大于目标智力，则概率+1/3
-加快节拍,演奏II,主动,1,从赞美诗，治愈律动，或进行曲上移除1个回合指示物
-进行曲,演奏,反应,2,范围2内有单位回合开始时，若你处于奏乐状态，则使该单位获得移动力+1，持续1回合
-进行曲II,进行曲,被动,,进行曲改为获得等于你的魅力/2的移动力
-空中飞人,杂耍,主动,2,移动至距离2内任意一格
-玫瑰戏法,杂耍,主动,3,使距离2内1单位有1/2概率获得魅惑（由你操控第1个行动力），持续1回合。若你的魅力大于目标智力，则必定生效
-清心浅唱,演奏II,反应,2,范围2内有单位回合开始时，移除其身上至多2个倒置摆放的技能状态
-闪亮登场,爱笑少年II,反应,1,回合开始时，范围2内感知最高的单位获得失神（行动力-1），持续1回合
-始乱终弃,察觉II，玫瑰戏法,主动,2,对范围2内1单位造成等于魅力*2-目标智力的伤害
-完美谢幕,闪亮登场,反应,1,回合结束时，范围2内智力最高的单位获得失神（行动力-1），持续1回合
-消失术,杂耍,主动,2,获得隐身（无法成为攻击目标），持续1回合。攻击或移动时移除隐身状态
-演奏,,主动,1,进入奏乐状态，持续1回合
-演奏II,赞美诗，治愈律动，进行曲,被动,,演奏改为被动
-摇滚乐,演奏II,主动,2,对范围2内所有单位造成等于魅力的伤害，若目标处于睡眠状态，则额外造成等于魅力的伤害
-杂耍,察觉,主动,2,使距离2内1单位获得涣散（受到技能伤害+1），持续2回合
-赞美诗,演奏,反应,2,范围2内有单位攻击时，若你处于奏乐状态，则使此次攻击额外造成1伤害
-赞美诗II,赞美诗,被动,,赞美诗改为攻击额外造成等于你的魅力/2的伤害
-震撼,闪亮登场,被动,,你可以使你的技能对目标额外造成等于魅力/2的伤害（被技能影响的单位都是目标）
-直击心灵,察觉II,被动,,施放技能时有感知/6概率造成技能伤害*2
-治愈律动,演奏,反应,2,范围2内有单位受到伤害时，若你处于奏乐状态，则为该单位回复3生命
-治愈律动II,治愈律动,被动,,治疗律动改为回复等于魅力的生命
-`,
-        "萨满": `Ability,Pre-requisite,Type,Cool Down,Effect
-冰霜打击,元素灌注,反应,1,攻击造成伤害时，对目标施加冰霜（移动力-1），持续1回合
-冰霜打击II,冰霜打击,被动,,冰霜打击改为施加冰霜III（移动力-3）
-大地护甲,元素灌注,被动,,射程-1，受到伤害-1
-大地护甲II,元素灌注II,被动,,射程-1，受到伤害-1
-大地震击,元素共鸣,反应,2,范围等于感知内有单位施放技能时，你可以消耗1法术力，对该单位造成1伤害并有1/2概率使其获得沉默（无法施放技能），持续1回合
-大地震击II,大地震击，元素共鸣II,反应,1,大地震击造成伤害时，目标获得失神II（行动力-2），持续1回合
-地震,大地震击II,主动,3,消耗3法术力，施放地震和回合结束时对范围3内所有单位造成6面骰得数的伤害，持续2回合
-地震II,地震,反应,1,地震造成伤害时，使魅力最低的单位获得击倒（行动力-1），持续1回合
-法力图腾,召唤图腾，元素共鸣II,反应,1,图腾单位回合结束时，其距离3内1单位获得1法术力
-风暴狂涌,能量充盈,主动,1,消耗1法术力，进行1次攻击
-火舌图腾,召唤图腾，烈火打击,被动,,你操控的图腾单位获得攻击力+3，射程+3
-极寒旋风,风暴狂涌，冰霜打击II,被动,,攻击额外造成目标冰霜状态数量的伤害
-空间扭曲,妖术,反应,3,范围等于感知内有单位结束移动时，将其移动至移动开始时的位置
-烈火打击,元素灌注,反应,1,攻击时，此次攻击额外造成1伤害，并施加灼烧（回合开始时失去1生命），持续1回合
-烈火打击II,烈火打击,被动,,烈火打击额外造成2伤害
-烈火打击III,烈火打击II,被动,,烈火打击无视目标任意数量的技能状态
-灵魂链接,妖术,反应,3,范围等于感知内有单位成为技能目标时，将目标改为你
-能量充盈,元素灌注,反应,2,施放技能时，本回合攻击额外造成2伤害，持续1回合
-熔岩爆裂,元素共鸣,主动,2,消耗2法术力，对距离等于感知内1单位造成6伤害，并施加灼烧（回合开始时失去1生命），持续2回合
-熔岩爆裂II,熔岩爆裂，元素共鸣II,反应,2,施放熔岩爆裂时，额外消耗任意数量的法术力，每消耗1法术力熔岩爆裂额外造成3伤害
-闪电击,元素共鸣,主动,1,消耗1法术力，对距离等于感知内1单位造成等于6面骰得数的伤害
-闪电击II,闪电击，元素共鸣II,反应,1,范围等于感知内有单位施放技能时，你可以消耗1法术力，对该单位施放闪电击
-闪电击III,闪电击II,被动,,闪电击对灼烧状态的单位额外造成3伤害
-连锁闪电,闪电击,主动,2,消耗1法术力，对范围等于感知内任意数量单位施放1次闪电击
-先祖召唤,妖术,被动,,智力+1
-先祖召唤II,先祖召唤,被动,,智力+1
-妖术,,主动,3,距离等于感知内1单位获得虚弱II（攻击力-2），持续1回合
-元素共鸣,,反应,1,范围等于感知内有除你以外的单位消耗法术力时，获得1法术力
-元素共鸣II,元素共鸣,反应,1,范围等于感知内有除你以外的单位施放技能时，获得1法术力
-元素共鸣III,闪电击III，熔岩爆裂II，地震,被动,,技能额外造成感知/2的伤害
-元素灌注,,被动,,力量+1
-元素灌注II,大地护甲,被动,,力量+1
-召唤图腾,,主动,3,在范围1内召唤一个图腾单位，图腾单位拥有攻击力0，射程0，移动力0，最大生命6，持续3回合
-召唤图腾II,召唤图腾，先祖召唤II,主动,1,在范围1内召唤一个图腾单位，图腾单位拥有攻击力0，射程0，移动力0，最大生命6，持续1回合
-治疗图腾,召唤图腾，治愈之潮,反应,1,图腾单位回合结束时，图腾单位范围3内任意数量单位回复3生命
-治愈之潮,妖术,主动,2,范围等于感知内任意数量单位回复等于6面骰得数的生命`
+    const excelFileName = 'SpellBook2.xlsx';
+
+    // --- 保留一份最小化的后备数据，防止加载完全失败时页面空白 ---
+    const fallbackRawSkillData = {
+        "示例职业": `Ability,Pre-requisite,Type,Cool Down,Effect
+示例技能,,主动,1,这是一个示例技能，请确保 SpellBook2.xlsx 文件存在`
     };
 
     // --- 角色卡常量 ---
@@ -901,6 +429,7 @@
         setup() {
             // --- 全局状态 ---
             const currentTab = ref('charCard');
+            const isLoadingSkills = ref(false);
             
             // --- 角色卡状态 ---
             const character = reactive({
@@ -924,7 +453,7 @@
                 transition: (dragState.isDragging || touchState.isPinching) ? 'none' : 'transform 0.1s ease-out',
             }));
 
-            // --- 🌟 技能书 (Skill Book) 状态与逻辑 ---
+            // --- 技能书 (Skill Book) 状态与逻辑 ---
             const sbAllSkills = reactive({}); 
             const sbLearnedSkills = reactive(new Set()); 
             const sbCurrentClass = ref('');
@@ -933,36 +462,95 @@
             const sbAncestorsCache = {};
             const classNavRef = ref(null); 
             const navDragState = reactive({ isDragging: false, startX: 0, scrollLeft: 0 });
+            const sbDetectedClasses = reactive(new Set()); // 存储从Excel检测到的职业名
 
-            // 解析 CSV 数据的函数
-            const parseRawData = () => {
-                for (const [className, csvContent] of Object.entries(rawSkillData)) {
-                    const lines = csvContent.split('\n');
-                    for (let i = 1; i < lines.length; i++) {
-                        const line = lines[i].trim();
-                        if (!line) continue;
-                        const parts = [];
-                        let lastIndex = 0;
-                        let commasFound = 0;
-                        for(let c=0; c<line.length; c++) {
-                            if(line[c] === ',') {
-                                commasFound++;
-                                if (commasFound <= 4) {
-                                    parts.push(line.substring(lastIndex, c));
-                                    lastIndex = c + 1;
-                                }
+            // 解析 CSV 内容 (复用逻辑)
+            const parseCSVContent = (className, csvContent) => {
+                const lines = csvContent.split('\n');
+                let startIndex = 0;
+                
+                // 简单的表头检测，跳过 header 行
+                if (lines.length > 0 && (lines[0].includes('Ability') || lines[0].includes('source'))) {
+                    startIndex = 1;
+                }
+
+                for (let i = startIndex; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    
+                    const parts = [];
+                    let lastIndex = 0;
+                    let commasFound = 0;
+                    for(let c=0; c<line.length; c++) {
+                        if(line[c] === ',') {
+                            commasFound++;
+                            if (commasFound <= 4) { 
+                                parts.push(line.substring(lastIndex, c));
+                                lastIndex = c + 1;
                             }
                         }
-                        parts.push(line.substring(lastIndex));
-                        if (parts.length < 5) continue;
-                        const name = parts[0].trim();
-                        const preRaw = parts[1].trim();
-                        const type = parts[2].trim();
-                        const cd = parts[3].trim();
-                        const effect = parts[4].trim();
-                        let preReqs = [];
-                        if (preRaw) preReqs = preRaw.replace(/"/g, '').split(/[，, ]+/).filter(s => s.trim() !== "");
-                        sbAllSkills[name] = { name, className, preReqs, type, cd, effect };
+                    }
+                    parts.push(line.substring(lastIndex));
+                    
+                    if (parts.length < 5) continue;
+                    
+                    const name = parts[0].trim();
+                    if (!name || name.startsWith('[')) continue; 
+
+                    const preRaw = parts[1].trim();
+                    const type = parts[2].trim();
+                    const cd = parts[3].trim();
+                    const effect = parts[4].trim();
+                    
+                    let preReqs = [];
+                    if (preRaw) preReqs = preRaw.replace(/"/g, '').split(/[，, ]+/).filter(s => s.trim() !== "");
+                    
+                    sbAllSkills[name] = { name, className, preReqs, type, cd, effect };
+                }
+            };
+
+            // 🌟 核心修改：读取并解析 Excel 文件
+            const fetchAndParseExcel = async () => {
+                isLoadingSkills.value = true;
+                
+                try {
+                    const response = await fetch(excelFileName);
+                    if (!response.ok) throw new Error(`无法找到文件: ${excelFileName}`);
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+                    // 遍历所有工作表 (Sheets)
+                    workbook.SheetNames.forEach(sheetName => {
+                        const worksheet = workbook.Sheets[sheetName];
+                        // 将 Sheet 转换为 CSV 格式
+                        const csv = XLSX.utils.sheet_to_csv(worksheet);
+                        
+                        // 简单检查该 Sheet 是否包含技能数据 (含有 "Ability" 关键字)
+                        if (csv.includes('Ability') || csv.includes('Type') || csv.includes('Effect')) {
+                            console.log(`正在解析职业: ${sheetName}`);
+                            sbDetectedClasses.add(sheetName);
+                            parseCSVContent(sheetName, csv);
+                        } else {
+                            console.log(`跳过工作表: ${sheetName} (未检测到技能数据格式)`);
+                        }
+                    });
+
+                } catch (error) {
+                    console.error('Excel 读取失败:', error);
+                    console.warn('回退到本地硬编码数据...');
+                    // 回退逻辑
+                    for (const [cls, content] of Object.entries(fallbackRawSkillData)) {
+                        sbDetectedClasses.add(cls);
+                        parseCSVContent(cls, content);
+                    }
+                } finally {
+                    isLoadingSkills.value = false;
+                    // 如果检测到了职业，默认选中第一个
+                    if (sbDetectedClasses.size > 0 && !sbCurrentClass.value) {
+                         // 优先选中 "战士" 如果存在，否则选中第一个
+                        if (sbDetectedClasses.has('战士')) sbCurrentClass.value = '战士';
+                        else sbCurrentClass.value = Array.from(sbDetectedClasses)[0];
                     }
                 }
             };
@@ -990,7 +578,9 @@
                 return fullAncestors.size;
             };
 
-            const sbClassList = computed(() => Object.keys(rawSkillData));
+            // 动态 Class List
+            const sbClassList = computed(() => Array.from(sbDetectedClasses));
+
             const sbTieredSkills = computed(() => {
                 if (!sbCurrentClass.value) return null;
                 const skills = Object.values(sbAllSkills).filter(s => s.className === sbCurrentClass.value);
@@ -1052,13 +642,11 @@
                 saveSkillBookData();
             };
 
-            // 🌟 新增：操作并自动关闭弹窗
             const sbToggleAndClose = (skillName) => {
                 sbToggleSkill(skillName);
                 sbCloseDetail();
             };
             
-            // 🌟 新增：格式化技能描述
             const formatSkillEffect = (text) => {
                 if (!text) return '';
                 return text
@@ -1197,8 +785,8 @@
 
             // --- 生命周期 ---
             onMounted(() => {
-                parseRawData();
-                sbCurrentClass.value = sbClassList.value[0];
+                // 启动 Excel 数据加载
+                fetchAndParseExcel();
 
                 const savedChar = localStorage.getItem('rpg-char-data-v5');
                 if (savedChar) {
@@ -1242,7 +830,8 @@
                 sbGetSkillStatus, sbDetailSkill, sbOpenDetail, sbCloseDetail, sbToggleSkill, sbResetSkills,
                 sbShowLearnedList, sbLearnedListGrouped, 
                 classNavRef, navStartDrag, navOnDrag, navStopDrag, handleClassClick,
-                toRoman, sbToggleAndClose, formatSkillEffect
+                toRoman, sbToggleAndClose, formatSkillEffect,
+                isLoadingSkills
             };
         }
     }).mount('#app');
